@@ -32,6 +32,7 @@ uniform vec3 uWindowA;
 uniform vec3 uWindowB;
 uniform vec3 uFogColor;
 uniform float uFogDensity;
+uniform float uHover;
 
 varying vec4 vWall;
 varying float vSeed;
@@ -49,9 +50,14 @@ float hash(vec3 p) {
 
 void main() {
   vec3 color;
+  // Featured buildings carry 1 + their index in the integer part of the seed.
+  float tag = floor(vSeed);
+  float featured = step(0.5, tag);
+  float hovered = featured * (1.0 - step(0.5, abs(tag - uHover)));
+  float seed = fract(vSeed);
 
   if (vRoof > 0.5) {
-    color = uRoof;
+    color = uRoof + uSodium * 0.05 * hovered;
   } else {
     float along = vWall.x;
     float up = vWall.y;
@@ -69,9 +75,10 @@ void main() {
       vec2 f = fract(cell);
 
       // Each building has its own share of lit windows.
-      float share = mix(0.06, 0.42, hash(vec3(vSeed * 91.7, 3.1, 7.7)));
+      float share = mix(0.06, 0.42, hash(vec3(seed * 91.7, 3.1, 7.7)));
+      share = mix(share, 0.92, featured);
       float wallId = floor(len * 37.0);
-      float r = hash(vec3(id.x + wallId, id.y, vSeed * 517.3));
+      float r = hash(vec3(id.x + wallId, id.y, seed * 517.3));
       float lit = step(r, share) * step(id.y, floors - 0.5);
 
       vec2 fw = fwidth(cell);
@@ -79,8 +86,9 @@ void main() {
                 * (1.0 - smoothstep(vec2(0.78, 0.80) - fw, vec2(0.78, 0.80) + fw, f));
       float mask = edge.x * edge.y;
 
-      float tone = hash(vec3(id.y, id.x + wallId, vSeed * 211.9));
+      float tone = hash(vec3(id.y, id.x + wallId, seed * 211.9));
       vec3 glow = mix(uWindowA, uWindowB, tone) * mix(1.2, 3.2, tone * tone);
+      glow *= 1.0 + 0.5 * featured + 0.6 * hovered;
 
       // Far away a window is smaller than a pixel. First drop the window
       // outline and light the whole cell at the window's share of its area,
@@ -112,6 +120,7 @@ export function createBuildingMaterial(): ShaderMaterial {
       uWindowB: { value: new Color("#ffe2a6") },
       uFogColor: { value: FOG_COLOR },
       uFogDensity: { value: FOG_DENSITY },
+      uHover: { value: -1 },
     },
   });
 }

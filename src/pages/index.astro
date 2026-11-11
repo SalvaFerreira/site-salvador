@@ -1,20 +1,5 @@
 ---
-import City from "../components/City";
-import "../styles/global.css";
+import CityPage from "../components/CityPage.astro";
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Salvador Ferreira</title>
-  </head>
-  <body>
-    <City client:only="react" />
-    <p class="attribution">
-      Buildings © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>
-    </p>
-  </body>
-</html>
+<CityPage />

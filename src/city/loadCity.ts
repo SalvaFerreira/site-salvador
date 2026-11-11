@@ -19,10 +19,13 @@ export interface ChunkInfo {
 
 export interface Manifest {
   attribution: string;
+  origin: { lon: number; lat: number };
   bbox: [number, number, number, number];
   unitsPerMetre: number;
   chunks: ChunkInfo[];
   land: { file: string; unitsPerMetre: number; origin: [number, number] };
+  roads: { file: string; unitsPerMetre: number };
+  projection: { x: number[]; y: number[] };
   bridge: { kind: string; points: [number, number][] }[];
   stats: { buildings: number };
 }
@@ -37,6 +40,15 @@ interface Footprints {
 }
 
 const DATA = "/data/";
+
+/** lon/lat (degrees) -> map metres relative to the scene origin (x east, y north). */
+export function project(manifest: Manifest, lon: number, lat: number): [number, number] {
+  const dl = lon - manifest.origin.lon;
+  const dp = lat - manifest.origin.lat;
+  const terms = [1, dl, dp, dl * dp, dl * dl, dp * dp];
+  const dot = (c: number[]) => c.reduce((sum, v, i) => sum + v * terms[i], 0);
+  return [dot(manifest.projection.x), dot(manifest.projection.y)];
+}
 
 export async function loadManifest(): Promise<Manifest> {
   const res = await fetch(`${DATA}manifest.json`);
@@ -88,9 +100,87 @@ function seedOf(n: number): number {
   return (h >>> 0) / 4294967296;
 }
 
+/** A place to light up, in map metres relative to the scene origin. */
+export interface Target {
+  index: number;
+  x: number;
+  y: number;
+}
+
+/** The building found for a target, in scene coordinates. */
+export interface Featured {
+  index: number;
+  x: number;
+  z: number;
+  height: number;
+  radius: number;
+  /** 0 when the target is inside the footprint, else metres to the building centre. */
+  distance: number;
+}
+
 export interface BuiltChunk {
   geometry: BufferGeometry;
   triangles: number;
+  featured: Featured[];
+}
+
+const SNAP_M = 60;
+
+function insideRing(coords: Float32Array, start: number, n: number, x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = coords[(start + i) * 2];
+    const yi = coords[(start + i) * 2 + 1];
+    const xj = coords[(start + j) * 2];
+    const yj = coords[(start + j) * 2 + 1];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** For each target, the building it falls in, or the nearest one within SNAP_M. */
+function findFeatured(f: Footprints, chunk: ChunkInfo, targets: Target[]): Map<number, Featured> {
+  const found = new Map<number, Featured>();
+  const [minX, minY, maxX, maxY] = chunk.bbox;
+  for (const t of targets) {
+    if (t.x < minX - SNAP_M || t.x > maxX + SNAP_M || t.y < minY - SNAP_M || t.y > maxY + SNAP_M) continue;
+    const x = t.x - chunk.origin[0];
+    const y = t.y - chunk.origin[1];
+    let best = -1;
+    let bestInfo: Featured | null = null;
+    let ring = 0;
+    let vert = 0;
+    for (let b = 0; b < f.nBuildings; b++) {
+      const n = f.vertCounts[ring];
+      let cx = 0;
+      let cy = 0;
+      for (let i = 0; i < n; i++) {
+        cx += f.coords[(vert + i) * 2];
+        cy += f.coords[(vert + i) * 2 + 1];
+      }
+      cx /= n;
+      cy /= n;
+      const distance = insideRing(f.coords, vert, n, x, y) ? 0 : Math.hypot(cx - x, cy - y);
+      if (distance <= SNAP_M && (!bestInfo || distance < bestInfo.distance)) {
+        let radius = 0;
+        for (let i = 0; i < n; i++) {
+          radius = Math.max(radius, Math.hypot(f.coords[(vert + i) * 2] - cx, f.coords[(vert + i) * 2 + 1] - cy));
+        }
+        best = b;
+        bestInfo = {
+          index: t.index,
+          x: cx + chunk.origin[0],
+          z: -(cy + chunk.origin[1]),
+          height: f.heights[b],
+          radius,
+          distance,
+        };
+      }
+      for (let r = 0; r < f.ringCounts[b]; r++) vert += f.vertCounts[ring++];
+    }
+    if (bestInfo) found.set(best, bestInfo);
+  }
+  return found;
 }
 
 /**
@@ -99,10 +189,17 @@ export interface BuiltChunk {
  *   normal    roofs point up; the shader uses that to skip windows
  *   wall      x: metres along this wall, y: metres above ground,
  *             z: wall length, w: building height
- *   seed      random 0..1 per building
+ *   seed      random 0..1 per building; featured buildings add 1 + their
+ *             target index, so the shader can tell them apart
  */
-export async function loadChunk(chunk: ChunkInfo, unitsPerMetre: number, salt: number): Promise<BuiltChunk> {
+export async function loadChunk(
+  chunk: ChunkInfo,
+  unitsPerMetre: number,
+  salt: number,
+  targets: Target[],
+): Promise<BuiltChunk> {
   const f = await loadFootprints(chunk.file, unitsPerMetre);
+  const featured = findFeatured(f, chunk, targets);
   const nVerts = f.coords.length / 2;
   const nRings = f.vertCounts.length;
 
@@ -120,7 +217,8 @@ export async function loadChunk(chunk: ChunkInfo, unitsPerMetre: number, salt: n
 
   for (let b = 0; b < f.nBuildings; b++) {
     const h = f.heights[b];
-    const s = seedOf(b * 131 + salt);
+    const tag = featured.get(b);
+    const s = seedOf(b * 131 + salt) * 0.999 + (tag ? 1 + tag.index : 0);
     const roofStart = vert;
     const holes: number[] = [];
     let buildingVerts = 0;
@@ -207,7 +305,7 @@ export async function loadChunk(chunk: ChunkInfo, unitsPerMetre: number, salt: n
   geometry.setIndex(new BufferAttribute(index.slice(0, ix), 1));
   geometry.computeBoundingSphere();
   geometry.computeBoundingBox();
-  return { geometry, triangles: ix / 3 };
+  return { geometry, triangles: ix / 3, featured: [...featured.values()] };
 }
 
 /** Flat land outline; everything outside it is river. */

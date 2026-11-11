@@ -3,6 +3,7 @@
 Input:  data/raw/*.json (from 01_download.py)
 Output: public/data/<freguesia>.bin   building footprints + heights, one per neighbourhood
         public/data/land.bin          land polygons (everything else is river)
+        public/data/roads.bin         street centre lines, for the street lighting
         public/data/manifest.json     index of the above, bridge geometry, statistics
 
 Coordinates are metres relative to the scene origin (config.ORIGIN_*),
@@ -21,6 +22,15 @@ Binary layout (little endian), shared by every .bin file:
     u8[nBuildings]   height in metres
     u8[nBuildings]   rings per building (first is the outer ring, counter-clockwise;
                      the rest are holes, clockwise)
+
+roads.bin holds polylines instead of polygons:
+
+    char[4]  magic "LXR1"
+    u32      nLines
+    u32      nVerts
+    u16[nLines]      vertices per line
+    i16[nVerts * 2]  x,y pairs, delta encoded like the rings above
+    u8[nLines]       class: 0 = main roads, 1 = secondary/tertiary, 2 = local streets
 
 Data (c) OpenStreetMap contributors, ODbL.
 """
@@ -225,6 +235,87 @@ def build_land(area, buildings):
     return [p for p in polygons_of(land) if p.area > 500]
 
 
+# ---------------------------------------------------------------- streets
+
+ROAD_UNITS_PER_METRE = 2
+ROAD_SIMPLIFY_M = 2.5
+ROAD_CLASS = {"motorway": 0, "trunk": 0, "primary": 0, "secondary": 1, "tertiary": 1}
+
+
+def write_roads(path, land):
+    """Street centre lines on land, as delta-encoded polylines."""
+    seen, lines, classes = set(), [], []
+    for name in [f"roads_{i}_{j}" for i in range(2) for j in range(2)]:
+        for el in load(name):
+            pts = el.get("geometry") or []
+            if el["id"] in seen or len(pts) < 2:
+                continue
+            seen.add(el["id"])
+            tags = el.get("tags", {})
+            if tags.get("tunnel") in ("yes", "building_passage") or str(tags.get("layer", "")).startswith("-"):
+                continue
+            if tags.get("area") == "yes":
+                continue
+            kind = tags["highway"].replace("_link", "")
+            lines.append(LineString(local_coords(pts)))
+            classes.append(ROAD_CLASS.get(kind, 2))
+
+    roads = gpd.GeoDataFrame({"cls": classes}, geometry=lines)
+    # Keeping only what is on land also drops the bridge deck, which is drawn separately.
+    roads["geometry"] = roads.geometry.intersection(unary_union(land).buffer(3))
+    roads = roads.explode(index_parts=False)
+    roads = roads[roads.geometry.geom_type == "LineString"]
+    roads["geometry"] = roads.geometry.simplify(ROAD_SIMPLIFY_M)
+    roads = roads[roads.geometry.length > 4]
+
+    vert_counts, coords, kept_classes, length = [], [], [], 0.0
+    for line, cls in zip(roads.geometry, roads["cls"]):
+        pts = np.round(np.asarray(line.coords)[:, :2] * ROAD_UNITS_PER_METRE).astype(np.int64)
+        keep = np.ones(len(pts), dtype=bool)
+        keep[1:] = np.any(pts[1:] != pts[:-1], axis=1)
+        pts = pts[keep]
+        if len(pts) < 2:
+            continue
+        deltas = pts.copy()
+        deltas[1:] -= pts[:-1]
+        if np.abs(deltas).max() > 32767 or len(pts) > 65535:
+            sys.exit("roads.bin: a street does not fit the 16 bit encoding.")
+        vert_counts.append(len(pts))
+        coords.append(deltas)
+        kept_classes.append(cls)
+        length += line.length
+    flat = np.concatenate(coords).astype("<i2")
+    data = b"".join([
+        struct.pack("<4sII", b"LXR1", len(vert_counts), len(flat)),
+        np.asarray(vert_counts, dtype="<u2").tobytes(),
+        flat.tobytes(),
+        np.asarray(kept_classes, dtype=np.uint8).tobytes(),
+    ])
+    path.write_bytes(data)
+    return {"file": path.name, "unitsPerMetre": ROAD_UNITS_PER_METRE, "lines": len(vert_counts),
+            "vertices": int(len(flat)), "bytes": len(data), "km": round(length / 1000, 1)}
+
+
+# ---------------------------------------------------------------- lon/lat -> scene
+
+def fit_projection():
+    """Quadratic fit of lon/lat -> local metres, so the site needs no projection library.
+
+    x and y are each  c0 + c1*dl + c2*dp + c3*dl*dp + c4*dl^2 + c5*dp^2
+    with dl = lon - origin lon, dp = lat - origin lat (degrees).
+    """
+    lon, lat = np.meshgrid(np.linspace(WEST, EAST, 40), np.linspace(SOUTH, NORTH, 40))
+    lon, lat = lon.ravel(), lat.ravel()
+    x, y = to_metric.transform(lon, lat)
+    x, y = np.asarray(x) - OX, np.asarray(y) - OY
+    dl, dp = lon - ORIGIN_LON, lat - ORIGIN_LAT
+    terms = np.column_stack([np.ones_like(dl), dl, dp, dl * dp, dl * dl, dp * dp])
+    cx, *_ = np.linalg.lstsq(terms, x, rcond=None)
+    cy, *_ = np.linalg.lstsq(terms, y, rcond=None)
+    error = float(np.max(np.hypot(terms @ cx - x, terms @ cy - y)))
+    return {"x": [float(v) for v in cx], "y": [float(v) for v in cy], "maxErrorM": round(error, 3)}
+
+
 # ---------------------------------------------------------------- bridge
 
 def read_bridge(area):
@@ -359,6 +450,9 @@ def main():
     land_info = write_bin(OUT / "land.bin", land, np.zeros(len(land)), LAND_UNITS_PER_METRE, np.array([0, 0]))
     land_area = sum(p.area for p in land)
 
+    print("Streets")
+    roads_info = write_roads(OUT / "roads.bin", land)
+
     minx, miny, maxx, maxy = area.bounds
     manifest = {
         "version": 1,
@@ -370,6 +464,8 @@ def main():
         "chunks": chunks,
         "land": {"file": "land.bin", "unitsPerMetre": LAND_UNITS_PER_METRE, "origin": [0, 0],
                  "polygons": land_info["buildings"], "vertices": land_info["vertices"], "bytes": land_info["bytes"]},
+        "roads": roads_info,
+        "projection": fit_projection(),
         "bridge": read_bridge(area),
         "stats": {
             **stats,

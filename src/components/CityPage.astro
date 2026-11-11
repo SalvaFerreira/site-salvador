@@ -1,0 +1,38 @@
+---
+import { getCollection } from "astro:content";
+import City from "./City";
+import "../styles/global.css";
+
+interface Props {
+  slug?: string;
+}
+
+const { slug } = Astro.props;
+const entries = (await getCollection("projects")).sort((a, b) => a.data.order - b.data.order);
+const projects = entries.map((entry) => ({
+  slug: entry.id,
+  title: entry.data.title,
+  place: entry.data.place,
+  coordinates: entry.data.coordinates,
+  stack: entry.data.stack,
+  html: entry.rendered?.html ?? "",
+}));
+const current = projects.find((p) => p.slug === slug);
+const title = current ? `${current.title} — Salvador Ferreira` : "Salvador Ferreira";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <City client:only="react" projects={projects} initialSlug={slug} />
+    <p class="attribution">
+      Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>
+    </p>
+  </body>
+</html>

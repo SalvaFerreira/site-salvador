@@ -36,3 +36,112 @@ body {
   color: #8b8578;
   white-space: pre;
 }
+
+:root {
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sodium: #ffb15c;
+}
+
+.place-label {
+  transform: translateY(-100%);
+  padding: 0 0 10px;
+  border: 0;
+  background: none;
+  color: #e9e1d2;
+  font: 13px/1.2 var(--serif);
+  white-space: nowrap;
+  cursor: pointer;
+  text-shadow: 0 0 6px #000, 0 0 2px #000;
+  /* a thin stem down to the building */
+  background-image: linear-gradient(var(--sodium), var(--sodium));
+  background-size: 1px 8px;
+  background-position: bottom center;
+  background-repeat: no-repeat;
+}
+
+.place-label:hover,
+.place-label:focus-visible {
+  color: var(--sodium);
+}
+
+.place-label:focus-visible,
+.panel-close:focus-visible {
+  outline: 1px solid var(--sodium);
+  outline-offset: 3px;
+}
+
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  width: min(100%, calc(65ch + 80px));
+  padding: 28px 40px 48px;
+  overflow-y: auto;
+  background: #0b0b0d;
+  border-left: 1px solid #1d1a16;
+  color: #d9d2c5;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.panel-close {
+  float: right;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #8b8578;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.panel-close:hover {
+  color: var(--sodium);
+}
+
+.panel-place {
+  margin: 0 0 28px;
+  color: #8b8578;
+  font-size: 12px;
+}
+
+.panel h1 {
+  margin: 0 0 8px;
+  font: 400 28px/1.2 var(--serif);
+  color: #f1eadc;
+  outline: none;
+}
+
+.panel-stack {
+  margin: 0 0 24px;
+  color: #8b8578;
+  font-size: 12px;
+}
+
+.panel-body {
+  max-width: 65ch;
+  margin-top: 24px;
+}
+
+.panel-body h2,
+.panel-body h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  color: #f1eadc;
+}
+
+.panel-body a {
+  color: var(--sodium);
+}
+
+@media (max-width: 800px) {
+  .panel {
+    top: 45%;
+    width: 100%;
+    padding: 20px 20px 40px;
+    border-left: 0;
+    border-top: 1px solid #1d1a16;
+  }
+}

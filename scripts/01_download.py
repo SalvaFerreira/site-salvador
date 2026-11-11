@@ -94,6 +94,15 @@ def main():
         f'relation["boundary"="administrative"]["admin_level"="8"]({FULL});\nout body geom;',
     )
 
+    print("Streets")
+    kinds = "motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|pedestrian"
+    dlat = (NORTH - SOUTH) / 2
+    dlon = (EAST - WEST) / 2
+    for i in range(2):
+        for j in range(2):
+            b = bbox(SOUTH + i * dlat, WEST + j * dlon, SOUTH + (i + 1) * dlat, WEST + (j + 1) * dlon)
+            fetch(f"roads_{i}_{j}", f'way["highway"~"^({kinds})(_link)?$"]({b});\nout tags geom qt;')
+
 
 if __name__ == "__main__":
     main()
