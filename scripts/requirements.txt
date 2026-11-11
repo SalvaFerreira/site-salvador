@@ -4,3 +4,4 @@ pyproj
 requests
 numpy
 scipy
+matplotlib
