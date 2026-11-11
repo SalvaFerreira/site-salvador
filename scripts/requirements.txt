@@ -1,0 +1,6 @@
+geopandas
+shapely
+pyproj
+requests
+numpy
+scipy
