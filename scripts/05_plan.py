@@ -6,6 +6,8 @@ data/raw/) and writes:
     public/data/plan-green.bin   green spaces and green corridors (LXB1 polygons)
     public/data/plan-rail.bin    LXR1 lines. Class 0 railway, 1 underground railway (council);
                                  2 metro, 3 tram (OpenStreetMap, from 01_download.py)
+    public/data/trees.bin        the council's tree inventory (street and garden trees):
+                                 char[4] "LXT1", u32 count, then i16 x,y pairs
     public/data/plan.json        index and attribution, plus the route of the tram
                                  that runs through the city scene
 
@@ -34,7 +36,11 @@ LAYERS = {
     "green_corridors": "Ambiente_DMEVAE/FeatureServer/2",
     "rail": "Cartografia_Base/FeatureServer/2",
     "rail_underground": "Cartografia_Base/FeatureServer/3",
+    "trees": "Ambiente_DMEVAE/FeatureServer/0",
 }
+# Only the position of each tree is needed.
+FIELDS = {"trees": "COD_SIG"}
+TREE_UNITS = 2
 HEADERS = {"User-Agent": "lisbon-night-city-pipeline/0.1"}
 GREEN_SIMPLIFY_M = 3.0
 GREEN_MIN_AREA_M2 = 400.0
@@ -51,8 +57,8 @@ def download(name, layer):
     while True:
         r = requests.get(
             f"{SERVICES}/{layer}/query",
-            params={"where": "1=1", "outFields": "*", "outSR": 4326, "f": "geojson",
-                    "resultOffset": offset, "resultRecordCount": 1000},
+            params={"where": "1=1", "outFields": FIELDS.get(name, "*"), "outSR": 4326, "f": "geojson",
+                    "resultOffset": offset, "resultRecordCount": 2000},
             headers=HEADERS, timeout=120,
         )
         r.raise_for_status()
@@ -156,8 +162,22 @@ def main():
 
     rail_info = write_lines(OUT / "plan-rail.bin", lines, classes, RAIL_UNITS)
 
+    print("Trees")
+    trees = gpd.read_file(files["trees"]).set_crs("EPSG:4326", allow_override=True).to_crs(CRS_METRIC)
+    trees = trees[trees.geometry.notna() & ~trees.geometry.is_empty]
+    xy = np.column_stack([trees.geometry.x - P.OX, trees.geometry.y - P.OY])
+    minx, miny, maxx, maxy = area.bounds
+    xy = xy[(xy[:, 0] > minx) & (xy[:, 0] < maxx) & (xy[:, 1] > miny) & (xy[:, 1] < maxy)]
+    # Neighbours end up next to each other in the file, which compresses better.
+    order = np.lexsort((xy[:, 0], np.floor(xy[:, 1] / 250)))
+    quantised = np.unique(np.round(xy[order] * TREE_UNITS).astype("<i2"), axis=0)
+    (OUT / "trees.bin").write_bytes(struct.pack("<4sI", b"LXT1", len(quantised)) + quantised.tobytes())
+    trees_info = {"file": "trees.bin", "unitsPerMetre": TREE_UNITS, "count": int(len(quantised)),
+                  "bytes": 8 + quantised.nbytes}
+
     plan = {
-        "attribution": "Green spaces and railways: Câmara Municipal de Lisboa. Metro and tram: OpenStreetMap contributors",
+        "attribution": "Green spaces, trees and railways: Câmara Municipal de Lisboa. Metro and tram: OpenStreetMap contributors",
+        "trees": trees_info,
         "green": {"file": "plan-green.bin", "unitsPerMetre": GREEN_UNITS, "polygons": green_info["buildings"],
                   "bytes": green_info["bytes"], "km2": round(sum(p.area for p in polygons) / 1e6, 2)},
         "rail": rail_info,

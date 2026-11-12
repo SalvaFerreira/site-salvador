@@ -3,11 +3,23 @@
 import { Line } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Color, Matrix4, Object3D, type BufferGeometry, type InstancedMesh, type Mesh } from "three";
+import {
+  BufferAttribute,
+  CircleGeometry,
+  Color,
+  IcosahedronGeometry,
+  InstancedMesh,
+  Matrix4,
+  MeshLambertMaterial,
+  Object3D,
+  type BufferGeometry,
+  type Mesh,
+  type OrthographicCamera,
+} from "three";
 import { shared } from "../city/environment";
-import { createPlanLineMaterial, createTrafficMaterial } from "../city/groundMaterials";
+import { createPlanLineMaterial, createShadowMaterial, createTrafficMaterial } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
-import { loadShapes, type Manifest } from "../city/loadCity";
+import { loadShapes, SHADOW_PER_M, type Manifest } from "../city/loadCity";
 
 const noRaycast = () => null;
 type Point3 = [number, number, number];
@@ -24,6 +36,7 @@ function randomFrom(seed: number): () => number {
 export interface PlanData {
   attribution: string;
   green: { file: string; unitsPerMetre: number };
+  trees: { file: string; unitsPerMetre: number };
   rail: { file: string; unitsPerMetre: number };
   tramRoute: [number, number][];
 }
@@ -34,75 +47,177 @@ export async function loadPlan(): Promise<PlanData> {
   return res.json();
 }
 
-// ---------------------------------------------------------------- parks
+// ---------------------------------------------------------------- parks and trees
 
-const TREE_COUNT = 18000;
-const TREE_COLORS = ["#5f9a4a", "#4f8a43", "#6fa653", "#467a3f"].map((c) => new Color(c));
+/** Extra trees scattered over the large green areas, which the council inventory does not cover. */
+const SCATTERED_TREES = 9000;
+/** Trees are drawn in square tiles this wide, so that only the ones near the view are drawn. */
+const TREE_TILE_M = 1200;
+const TREE_COLORS = ["#5f9a4a", "#4f8a43", "#6fa653", "#467a3f", "#7aa84f"].map((c) => new Color(c));
 
-/** Green spaces with trees scattered over them. */
+/** A low-poly canopy: lighter on top, darker underneath. */
+function createCanopyGeometry(): BufferGeometry {
+  const geometry = new IcosahedronGeometry(1, 0);
+  const position = geometry.getAttribute("position");
+  const color = new Float32Array(position.count * 3);
+  for (let i = 0; i < position.count; i++) {
+    const tone = 0.7 + 0.3 * (position.getY(i) * 0.5 + 0.5);
+    color.set([tone, tone, tone], i * 3);
+  }
+  geometry.setAttribute("color", new BufferAttribute(color, 3));
+  return geometry;
+}
+
+/** The council's tree inventory: x, y pairs in map metres. */
+async function loadTrees(file: string, unitsPerMetre: number): Promise<Float32Array> {
+  const res = await fetch(`/data/${file}`);
+  if (!res.ok) throw new Error(`${file}: HTTP ${res.status}`);
+  const buffer = await res.arrayBuffer();
+  const view = new DataView(buffer);
+  if (view.getUint32(0, true) !== 0x3154584c) throw new Error(`${file}: not an LXT1 file`);
+  const raw = new Int16Array(buffer, 8, view.getUint32(4, true) * 2);
+  const out = new Float32Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw[i] / unitsPerMetre;
+  return out;
+}
+
+/** Random points inside the green polygons, more of them in larger triangles. Returns x, y pairs. */
+function scatterOver(green: BufferGeometry, count: number, random: () => number): Float32Array {
+  const pos = green.getAttribute("position");
+  const index = green.getIndex()!;
+  const nTris = index.count / 3;
+  const cumulative = new Float64Array(nTris);
+  let total = 0;
+  for (let t = 0; t < nTris; t++) {
+    const [a, b, c] = [index.getX(t * 3), index.getX(t * 3 + 1), index.getX(t * 3 + 2)];
+    total +=
+      Math.abs(
+        (pos.getX(b) - pos.getX(a)) * (pos.getZ(c) - pos.getZ(a)) - (pos.getX(c) - pos.getX(a)) * (pos.getZ(b) - pos.getZ(a)),
+      ) / 2;
+    cumulative[t] = total;
+  }
+  const out = new Float32Array(count * 2);
+  for (let i = 0; i < count; i++) {
+    const target = random() * total;
+    let lo = 0;
+    let hi = nTris - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cumulative[mid] < target) lo = mid + 1;
+      else hi = mid;
+    }
+    const [a, b, c] = [index.getX(lo * 3), index.getX(lo * 3 + 1), index.getX(lo * 3 + 2)];
+    let u = random();
+    let v = random();
+    if (u + v > 1) {
+      u = 1 - u;
+      v = 1 - v;
+    }
+    out[i * 2] = pos.getX(a) + u * (pos.getX(b) - pos.getX(a)) + v * (pos.getX(c) - pos.getX(a));
+    // The green geometry is already in scene coordinates: map north is -z.
+    out[i * 2 + 1] = -(pos.getZ(a) + u * (pos.getZ(b) - pos.getZ(a)) + v * (pos.getZ(c) - pos.getZ(a)));
+  }
+  return out;
+}
+
+interface TreeTile {
+  canopies: InstancedMesh;
+  shadows: InstancedMesh;
+  total: number;
+}
+
+/**
+ * Share of the trees drawn at a given zoom (pixels per metre). Seen from far
+ * away a tree is a pixel or two, so most of them can be left out unnoticed.
+ */
+function treeShare(zoom: number): number {
+  return zoom >= 0.55 ? 1 : zoom >= 0.28 ? 0.5 : 0.25;
+}
+
+/** Green spaces, and the city's trees as small 3D canopies with a shadow each. */
 export function Parks({ plan }: { plan: PlanData }) {
   const [green, setGreen] = useState<BufferGeometry | null>(null);
-  const trees = useRef<InstancedMesh>(null);
+  const [inventory, setInventory] = useState<Float32Array | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     loadShapes(plan.green.file, plan.green.unitsPerMetre).then((g) => !cancelled && setGreen(g));
+    loadTrees(plan.trees.file, plan.trees.unitsPerMetre).then((t) => !cancelled && setInventory(t));
     return () => {
       cancelled = true;
     };
   }, [plan]);
 
-  useLayoutEffect(() => {
-    const mesh = trees.current;
-    if (!green || !mesh) return;
-    // Pick random points inside the green polygons, more of them in larger triangles.
-    const pos = green.getAttribute("position");
-    const index = green.getIndex()!;
-    const nTris = index.count / 3;
-    const cumulative = new Float64Array(nTris);
-    let total = 0;
-    for (let t = 0; t < nTris; t++) {
-      const [a, b, c] = [index.getX(t * 3), index.getX(t * 3 + 1), index.getX(t * 3 + 2)];
-      const area =
-        Math.abs(
-          (pos.getX(b) - pos.getX(a)) * (pos.getZ(c) - pos.getZ(a)) -
-            (pos.getX(c) - pos.getX(a)) * (pos.getZ(b) - pos.getZ(a)),
-        ) / 2;
-      total += area;
-      cumulative[t] = total;
-    }
+  const tiles = useMemo<TreeTile[]>(() => {
+    if (!green || !inventory) return [];
     const random = randomFrom(2024);
+    const scattered = scatterOver(green, SCATTERED_TREES, random);
+
+    // Sort every tree into its tile. Street trees are small, park trees larger.
+    const byTile = new Map<string, { x: number; y: number; r: number }[]>();
+    const add = (x: number, y: number, r: number) => {
+      const key = `${Math.floor(x / TREE_TILE_M)},${Math.floor(y / TREE_TILE_M)}`;
+      let list = byTile.get(key);
+      if (!list) byTile.set(key, (list = []));
+      list.push({ x, y, r });
+    };
+    for (let i = 0; i < inventory.length; i += 2) add(inventory[i], inventory[i + 1], 3 + random() * 2.6);
+    for (let i = 0; i < scattered.length; i += 2) add(scattered[i], scattered[i + 1], 4.5 + random() * 3.5);
+
+    const canopy = createCanopyGeometry();
+    const canopyMaterial = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    const disc = new CircleGeometry(1, 7).rotateX(-Math.PI / 2);
+    const shadowMaterial = createShadowMaterial();
     const dummy = new Object3D();
-    for (let i = 0; i < TREE_COUNT; i++) {
-      const target = random() * total;
-      let lo = 0;
-      let hi = nTris - 1;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (cumulative[mid] < target) lo = mid + 1;
-        else hi = mid;
+    const out: TreeTile[] = [];
+    for (const list of byTile.values()) {
+      // Shuffled, so that drawing only the first part of a tile thins it evenly.
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
       }
-      const [a, b, c] = [index.getX(lo * 3), index.getX(lo * 3 + 1), index.getX(lo * 3 + 2)];
-      let u = random();
-      let v = random();
-      if (u + v > 1) {
-        u = 1 - u;
-        v = 1 - v;
+      const canopies = new InstancedMesh(canopy, canopyMaterial, list.length);
+      const shadows = new InstancedMesh(disc, shadowMaterial, list.length);
+      list.forEach((tree, i) => {
+        const { x, y, r } = tree;
+        dummy.position.set(x, r * 1.05, -y);
+        dummy.scale.set(r, r * (1 + random() * 0.35), r);
+        dummy.rotation.set(0, random() * Math.PI, 0);
+        dummy.updateMatrix();
+        canopies.setMatrixAt(i, dummy.matrix);
+        canopies.setColorAt(i, TREE_COLORS[Math.floor(random() * TREE_COLORS.length)]);
+        // The shadow lies on the ground, away from the sun.
+        dummy.position.set(x + SHADOW_PER_M[0] * r, 0.72, -(y + SHADOW_PER_M[1] * r));
+        dummy.scale.set(r * 0.95, 1, r * 0.95);
+        dummy.rotation.set(0, 0, 0);
+        dummy.updateMatrix();
+        shadows.setMatrixAt(i, dummy.matrix);
+      });
+      for (const mesh of [canopies, shadows]) {
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.computeBoundingSphere();
+        mesh.raycast = noRaycast;
       }
-      const x = pos.getX(a) + u * (pos.getX(b) - pos.getX(a)) + v * (pos.getX(c) - pos.getX(a));
-      const z = pos.getZ(a) + u * (pos.getZ(b) - pos.getZ(a)) + v * (pos.getZ(c) - pos.getZ(a));
-      const r = 4 + random() * 4;
-      dummy.position.set(x, r * 0.95, z);
-      dummy.scale.set(r, r * (1 + random() * 0.4), r);
-      dummy.rotation.y = random() * Math.PI;
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, TREE_COLORS[Math.floor(random() * TREE_COLORS.length)]);
+      shadows.renderOrder = 2;
+      out.push({ canopies, shadows, total: list.length });
     }
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    mesh.computeBoundingSphere();
-  }, [green]);
+    return out;
+  }, [green, inventory]);
+
+  // Starts at 0 so the first frame always sets the counts.
+  const share = useRef(0);
+  useFrame(({ camera }) => {
+    const zoom = (camera as OrthographicCamera).zoom;
+    const next = treeShare(zoom);
+    if (next === share.current) return;
+    share.current = next;
+    for (const tile of tiles) {
+      tile.canopies.count = Math.ceil(tile.total * next);
+      tile.shadows.count = tile.canopies.count;
+      // Tree shadows are too small to see once the view is wide.
+      tile.shadows.visible = zoom >= 0.45;
+    }
+  });
 
   if (!green) return null;
   return (
@@ -110,10 +225,12 @@ export function Parks({ plan }: { plan: PlanData }) {
       <mesh geometry={green} position-y={0.15} renderOrder={-1} raycast={noRaycast}>
         <meshBasicMaterial color="#a9c98a" />
       </mesh>
-      <instancedMesh ref={trees} args={[undefined, undefined, TREE_COUNT]} raycast={noRaycast}>
-        <icosahedronGeometry args={[1, 0]} />
-        <meshLambertMaterial flatShading />
-      </instancedMesh>
+      {tiles.map((tile, i) => (
+        <group key={i}>
+          <primitive object={tile.canopies} />
+          <primitive object={tile.shadows} />
+        </group>
+      ))}
     </>
   );
 }

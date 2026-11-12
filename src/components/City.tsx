@@ -1,23 +1,11 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import {
-  Color,
-  DoubleSide,
-  KeepStencilOp,
-  MeshBasicMaterial,
-  MOUSE,
-  NotEqualStencilFunc,
-  ReplaceStencilOp,
-  TOUCH,
-  Vector3,
-  type BufferGeometry,
-  type OrthographicCamera,
-} from "three";
+import { Color, MOUSE, TOUCH, Vector3, type BufferGeometry, type OrthographicCamera } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ACCENT_SLOTS, createBuildingMaterial } from "../city/buildingMaterial";
 import { BACKDROP, shared } from "../city/environment";
-import { createRiverMaterial, createStreetMaterial, STREET_HALF_WIDTH } from "../city/groundMaterials";
+import { createRiverMaterial, createShadowMaterial, createStreetMaterial, STREET_HALF_WIDTH } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { loadChunk, loadManifest, loadShapes, project, type Featured, type Manifest } from "../city/loadCity";
 import { Bridge, BRIDGE_DECK_M, Cars, loadPlan, Parks, PlanLayer, Tram, type PlanData } from "./Extras";
@@ -128,25 +116,6 @@ const PANEL_WIDTH_PX = 620;
 
 const noRaycast = () => null;
 
-/**
- * Shadows on the ground. They overlap a lot (every building casts one), so the
- * stencil buffer lets each pixel be darkened only once.
- */
-function createShadowMaterial(): MeshBasicMaterial {
-  return new MeshBasicMaterial({
-    color: "#232c47",
-    transparent: true,
-    opacity: 0.42,
-    depthWrite: false,
-    side: DoubleSide,
-    stencilWrite: true,
-    stencilRef: 1,
-    stencilFunc: NotEqualStencilFunc,
-    stencilFail: KeepStencilOp,
-    stencilZFail: KeepStencilOp,
-    stencilZPass: ReplaceStencilOp,
-  });
-}
 /** ?shot: no interface, for taking the preview images. */
 const SHOT = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("shot");
 

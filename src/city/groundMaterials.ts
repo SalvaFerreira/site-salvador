@@ -1,7 +1,7 @@
 // Materials for everything that lies flat: streets, the bridge deck, the
 // lines of the Plan layer and the river. All use the `road` attribute made
 // by buildRibbons (x = metres along, y = -1..1 across, z = class), except the river.
-import { Color, ShaderMaterial } from "three";
+import { Color, DoubleSide, KeepStencilOp, MeshBasicMaterial, NotEqualStencilFunc, ReplaceStencilOp, ShaderMaterial } from "three";
 import { shared } from "./environment";
 
 /** Half width of the carriageway per road class, in metres. */
@@ -152,5 +152,25 @@ void main() {
 }
 `,
     uniforms: { ...shared, uWater: { value: new Color("#4f86c4") } },
+  });
+}
+
+/**
+ * Shadows on the ground. They overlap a lot (every building casts one), so the
+ * stencil buffer lets each pixel be darkened only once.
+ */
+export function createShadowMaterial(): MeshBasicMaterial {
+  return new MeshBasicMaterial({
+    color: "#232c47",
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false,
+    side: DoubleSide,
+    stencilWrite: true,
+    stencilRef: 1,
+    stencilFunc: NotEqualStencilFunc,
+    stencilFail: KeepStencilOp,
+    stencilZFail: KeepStencilOp,
+    stencilZPass: ReplaceStencilOp,
   });
 }

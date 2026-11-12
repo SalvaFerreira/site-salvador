@@ -138,7 +138,7 @@ const SNAP_M = 60;
  * How far a shadow reaches on the ground per metre of building height, in map
  * metres (east, north). The sun is in the west-south-west, as in the building shader.
  */
-const SHADOW_PER_M: [number, number] = [0.72, 0.34];
+export const SHADOW_PER_M: [number, number] = [0.72, 0.34];
 
 function insideRing(coords: Float32Array, start: number, n: number, x: number, y: number): boolean {
   let inside = false;
