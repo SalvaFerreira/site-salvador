@@ -25,7 +25,7 @@ const noRaycast = () => null;
 type Point3 = [number, number, number];
 
 /** Small repeatable random generator, so the city looks the same on every visit. */
-function randomFrom(seed: number): () => number {
+export function randomFrom(seed: number): () => number {
   let s = seed >>> 0;
   return () => {
     s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
@@ -38,7 +38,11 @@ export interface PlanData {
   green: { file: string; unitsPerMetre: number };
   trees: { file: string; unitsPerMetre: number };
   rail: { file: string; unitsPerMetre: number };
-  tramRoute: [number, number][];
+  /** Routes of what moves in the scene, as lists of [x, y] points in map metres. */
+  tramRoutes: number[][][];
+  trainRoutes: { name: string; points: number[][] }[];
+  ferryRoutes: number[][][];
+  sailingLanes: number[][][];
 }
 
 export async function loadPlan(): Promise<PlanData> {
@@ -235,110 +239,6 @@ export function Parks({ plan }: { plan: PlanData }) {
   );
 }
 
-// ---------------------------------------------------------------- cars
-
-const CAR_COUNT = 900;
-const CAR_COLORS = ["#f1f1ee", "#f1f1ee", "#b9bcc0", "#74787d", "#1f2124", "#a8261c", "#27477d", "#e8c02c"].map(
-  (c) => new Color(c),
-);
-
-interface Car {
-  line: Float32Array | ArrayLike<number>;
-  lengths: Float32Array;
-  start: number;
-  speed: number;
-}
-
-/** A few cars driving along the main roads. */
-export function Cars({ roads }: { roads: Polyline[] }) {
-  const mesh = useRef<InstancedMesh>(null);
-  const cars = useMemo(() => {
-    // Only main and secondary roads long enough for a car to be seen driving.
-    const ways = roads
-      .filter((r) => r.cls <= 1)
-      .map((r) => {
-        const n = r.points.length / 2;
-        const lengths = new Float32Array(n);
-        for (let i = 1; i < n; i++) {
-          lengths[i] =
-            lengths[i - 1] + Math.hypot(r.points[i * 2] - r.points[i * 2 - 2], r.points[i * 2 + 1] - r.points[i * 2 - 1]);
-        }
-        return { line: r.points, lengths, total: lengths[n - 1], cls: r.cls };
-      })
-      .filter((w) => w.total > 160);
-    if (!ways.length) return [];
-    const random = randomFrom(7);
-    const sum = ways.reduce((s, w) => s + w.total, 0);
-    const out: Car[] = [];
-    for (let i = 0; i < CAR_COUNT; i++) {
-      let target = random() * sum;
-      let way = ways[0];
-      for (const w of ways) {
-        way = w;
-        target -= w.total;
-        if (target <= 0) break;
-      }
-      out.push({
-        line: way.line,
-        lengths: way.lengths,
-        start: random() * way.total,
-        speed: way.cls === 0 ? 11 + random() * 5 : 7 + random() * 4,
-      });
-    }
-    return out;
-  }, [roads]);
-
-  useLayoutEffect(() => {
-    const m = mesh.current;
-    if (!m) return;
-    const random = randomFrom(99);
-    for (let i = 0; i < cars.length; i++) m.setColorAt(i, CAR_COLORS[Math.floor(random() * CAR_COLORS.length)]);
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
-  }, [cars]);
-
-  const dummy = useMemo(() => new Object3D(), []);
-  const hidden = useMemo(() => new Matrix4().makeScale(0, 0, 0), []);
-
-  useFrame(() => {
-    const m = mesh.current;
-    if (!m) return;
-    // With reduced motion uTime stays 0 and the cars stand still.
-    const time = shared.uTime.value;
-    for (let i = 0; i < cars.length; i++) {
-      const car = cars[i];
-      const n = car.lengths.length;
-      const total = car.lengths[n - 1];
-      const d = (car.start + car.speed * time) % total;
-      let k = 1;
-      while (k < n - 1 && car.lengths[k] < d) k++;
-      const t = (d - car.lengths[k - 1]) / (car.lengths[k] - car.lengths[k - 1] || 1);
-      const ax = car.line[k * 2 - 2];
-      const ay = car.line[k * 2 - 1];
-      const bx = car.line[k * 2];
-      const by = car.line[k * 2 + 1];
-      const len = Math.hypot(bx - ax, by - ay) || 1;
-      // Keep to the right-hand side of the road.
-      const sx = ((by - ay) / len) * 2.4;
-      const sy = (-(bx - ax) / len) * 2.4;
-      dummy.position.set(ax + (bx - ax) * t + sx, 1.3, -(ay + (by - ay) * t + sy));
-      dummy.rotation.y = Math.atan2(by - ay, bx - ax);
-      dummy.updateMatrix();
-      // A car fades in and out at the ends of its road instead of popping.
-      const edge = Math.min(d, total - d);
-      m.setMatrixAt(i, edge < 6 ? hidden : dummy.matrix);
-    }
-    m.instanceMatrix.needsUpdate = true;
-  });
-
-  if (!cars.length) return null;
-  return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, cars.length]} raycast={noRaycast} frustumCulled={false}>
-      <boxGeometry args={[5.4, 2, 2.5]} />
-      <meshLambertMaterial />
-    </instancedMesh>
-  );
-}
-
 // ---------------------------------------------------------------- bridge
 
 export const BRIDGE_DECK_M = 70;
@@ -405,52 +305,6 @@ export function Bridge({ manifest }: { manifest: Manifest }) {
         </mesh>
       ))}
     </>
-  );
-}
-
-// ---------------------------------------------------------------- tram
-
-const TRAM_SPEED = 7; // m/s
-const TRAM_PAUSE_S = 45;
-
-/** A yellow tram that crosses the centre every now and then. */
-export function Tram({ route }: { route: [number, number][] }) {
-  const mesh = useRef<Mesh>(null);
-  const lengths = useMemo(() => {
-    const out = [0];
-    for (let i = 1; i < route.length; i++) {
-      out.push(out[i - 1] + Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]));
-    }
-    return out;
-  }, [route]);
-
-  useFrame(() => {
-    const m = mesh.current;
-    if (!m || route.length < 2) return;
-    const total = lengths[lengths.length - 1];
-    const travel = total / TRAM_SPEED;
-    const cycle = travel + TRAM_PAUSE_S;
-    // With reduced motion uTime stays 0: the tram waits a third of the way along.
-    const time = shared.uTime.value === 0 ? travel / 3 : shared.uTime.value;
-    const phase = time % cycle;
-    m.visible = phase < travel;
-    if (!m.visible) return;
-    const backwards = Math.floor(time / cycle) % 2 === 1;
-    const d = (backwards ? travel - phase : phase) * TRAM_SPEED;
-    let i = 1;
-    while (i < lengths.length - 1 && lengths[i] < d) i++;
-    const t = (d - lengths[i - 1]) / (lengths[i] - lengths[i - 1] || 1);
-    const [ax, ay] = route[i - 1];
-    const [bx, by] = route[i];
-    m.position.set(ax + (bx - ax) * t, 2.2, -(ay + (by - ay) * t));
-    m.rotation.y = Math.atan2(by - ay, bx - ax);
-  });
-
-  return (
-    <mesh ref={mesh} raycast={noRaycast}>
-      <boxGeometry args={[14, 3.6, 2.8]} />
-      <meshLambertMaterial color="#f0c419" />
-    </mesh>
   );
 }
 

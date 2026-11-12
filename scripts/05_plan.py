@@ -8,8 +8,8 @@ data/raw/) and writes:
                                  2 metro, 3 tram (OpenStreetMap, from 01_download.py)
     public/data/trees.bin        the council's tree inventory (street and garden trees):
                                  char[4] "LXT1", u32 count, then i16 x,y pairs
-    public/data/plan.json        index and attribution, plus the route of the tram
-                                 that runs through the city scene
+    public/data/plan.json        index and attribution, plus the routes of what moves in
+                                 the scene: trams, trains, ferries and sailing boats
 
 Binary layouts are documented in 02_process.py.
 Source: Câmara Municipal de Lisboa (geodados).
@@ -23,7 +23,7 @@ import geopandas as gpd
 import numpy as np
 import requests
 import shapely
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import linemerge, unary_union
 
 from config import CRS_METRIC, EAST, NORTH, OUT, RAW, SOUTH, WEST
@@ -111,6 +111,78 @@ def write_lines(path, lines, classes, units):
     return {"file": path.name, "unitsPerMetre": units, "lines": len(vert_counts), "bytes": len(data)}
 
 
+# Railway lines a train runs on in the scene. The Sintra line is left out: it
+# reaches Rossio through a tunnel, and the train would cut through the city.
+TRAIN_LINES = ["Linha de Cascais", "Linha de Cintura", "Linha do Norte", "Linha do Sul"]
+RAIL_DECK_M = 62  # the railway runs under the road deck of the bridge
+
+# Ferry piers on the north bank and the direction each ferry leaves in, [lon, lat].
+FERRIES = [
+    ([-9.1452, 38.7050], [-9.1478, 38.6885]),  # Cais do Sodré -> Cacilhas
+    ([-9.1330, 38.7062], [-9.1120, 38.6800]),  # Terreiro do Paço -> Barreiro
+    ([-9.1975, 38.6952], [-9.2100, 38.6790]),  # Belém -> Porto Brandão
+]
+SAILING_BOATS = 22
+
+
+def to_local(lon, lat):
+    x, y = P.to_metric.transform(lon, lat)
+    return x - P.OX, y - P.OY
+
+
+def round_points(line, digits=1):
+    return [[round(v, digits) for v in pt] for pt in line.coords]
+
+
+def train_routes(path, view, bridge):
+    """Each chosen line as [x, y, height] points, raised to the rail deck where it is on the bridge."""
+    gdf = gpd.read_file(path).set_crs("EPSG:4326", allow_override=True).to_crs(CRS_METRIC)
+    gdf["geometry"] = gdf.geometry.translate(-P.OX, -P.OY)
+    routes = []
+    for name in TRAIN_LINES:
+        pieces = [g.intersection(view) for g in gdf[gdf["NOME"] == name].geometry]
+        pieces = [g for g in pieces if g.geom_type == "LineString" and g.length > 300]
+        if not pieces:
+            continue
+        line = max(pieces, key=lambda g: g.length).simplify(2.0).segmentize(25)
+        xy = np.asarray(line.coords)[:, :2]
+        # Only the line that crosses the river is on the bridge; the others pass underneath it.
+        crosses = name == "Linha do Sul"
+        on_bridge = np.array([1.0 if crosses and bridge.contains(Point(x, y)) else 0.0 for x, y in xy])
+        # A gentle ramp on and off the bridge instead of a step.
+        kernel = np.ones(17) / 17
+        height = np.convolve(np.pad(on_bridge, 8, mode="edge"), kernel, mode="valid") * RAIL_DECK_M
+        routes.append({"name": name, "points": [[round(x, 1), round(y, 1), round(h, 1)] for (x, y), h in zip(xy, height)]})
+    return routes
+
+
+def boat_routes(view, land):
+    """Ferry crossings from the north bank, and short lanes for sailing boats, all in open water."""
+    river = view.difference(land)
+    open_water = river.buffer(-220)
+    ferries = []
+    for pier, towards in FERRIES:
+        crossing = LineString([to_local(*pier), to_local(*towards)]).intersection(river.buffer(-25))
+        parts = list(crossing.geoms) if hasattr(crossing, "geoms") else [crossing]
+        parts = [g for g in parts if g.geom_type == "LineString" and g.length > 400]
+        if parts:
+            ferries.append(round_points(max(parts, key=lambda g: g.length)))
+
+    rng = np.random.default_rng(7)
+    minx, miny, maxx, maxy = open_water.bounds
+    sails = []
+    for _ in range(4000):
+        if len(sails) == SAILING_BOATS:
+            break
+        x, y = rng.uniform(minx, maxx), rng.uniform(miny, maxy)
+        angle = rng.normal(0, 0.5) + (np.pi if rng.random() < 0.5 else 0)  # mostly along the river
+        length = rng.uniform(500, 1100)
+        lane = LineString([(x, y), (x + np.cos(angle) * length, y + np.sin(angle) * length)])
+        if open_water.contains(lane):
+            sails.append(round_points(lane))
+    return ferries, sails
+
+
 def main():
     RAW.mkdir(parents=True, exist_ok=True)
     print("Downloading council layers")
@@ -154,11 +226,20 @@ def main():
         if is_tram:
             trams.append(line)
 
-    # The tram in the scene follows the longest unbroken stretch of track near the Baixa.
-    centre = Point(0, -350).buffer(2500)
+    # Trams in the scene follow the longest unbroken stretches of track around the centre.
+    centre = Point(0, -350).buffer(3200)
     merged = linemerge(unary_union(trams).intersection(centre))
     stretches = list(merged.geoms) if hasattr(merged, "geoms") else [merged]
-    route = max((g for g in stretches if g.geom_type == "LineString"), key=lambda g: g.length).simplify(1.0)
+    stretches = sorted((g for g in stretches if g.geom_type == "LineString"), key=lambda g: -g.length)
+    tram_routes = [g.simplify(1.0) for g in stretches[:4] if g.length > 700]
+
+    print("Trains and boats")
+    manifest = json.loads((OUT / "manifest.json").read_text(encoding="utf-8"))
+    view = box(*manifest["view"])
+    bridge = unary_union([LineString(w["points"]) for w in manifest["bridge"] if w["kind"] == "road"]).buffer(45)
+    trains = train_routes(files["rail"], view, bridge)
+    land = shapely.from_wkb(land_file.read_bytes()) if land_file.exists() else Polygon()
+    ferries, sails = boat_routes(view, land)
 
     rail_info = write_lines(OUT / "plan-rail.bin", lines, classes, RAIL_UNITS)
 
@@ -181,11 +262,16 @@ def main():
         "green": {"file": "plan-green.bin", "unitsPerMetre": GREEN_UNITS, "polygons": green_info["buildings"],
                   "bytes": green_info["bytes"], "km2": round(sum(p.area for p in polygons) / 1e6, 2)},
         "rail": rail_info,
-        "tramRoute": [[round(x, 1), round(y, 1)] for x, y in route.coords],
+        "tramRoutes": [round_points(g) for g in tram_routes],
+        "trainRoutes": trains,
+        "ferryRoutes": ferries,
+        "sailingLanes": sails,
     }
     (OUT / "plan.json").write_text(json.dumps(plan, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    summary = {**plan, "tramRoute": f"{len(plan['tramRoute'])} points, {route.length:.0f} m"}
-    print(json.dumps(summary, ensure_ascii=False, indent=1))
+    print(json.dumps({k: v for k, v in plan.items() if not k.endswith(("Routes", "Lanes"))}, ensure_ascii=False, indent=1))
+    print("trams:", [f"{g.length:.0f} m" for g in tram_routes])
+    print("trains:", [(t["name"], len(t["points"]), max(pt[2] for pt in t["points"])) for t in trains])
+    print("ferries:", [f"{LineString(f).length:.0f} m" for f in ferries], "| sailing lanes:", len(sails))
 
 
 if __name__ == "__main__":

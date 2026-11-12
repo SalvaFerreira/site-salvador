@@ -8,7 +8,8 @@ import { BACKDROP, shared } from "../city/environment";
 import { createRiverMaterial, createShadowMaterial, createStreetMaterial, STREET_HALF_WIDTH } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { loadChunk, loadManifest, loadShapes, project, type Featured, type Manifest } from "../city/loadCity";
-import { Bridge, BRIDGE_DECK_M, Cars, loadPlan, Parks, PlanLayer, Tram, type PlanData } from "./Extras";
+import { Bridge, BRIDGE_DECK_M, loadPlan, Parks, PlanLayer, type PlanData } from "./Extras";
+import { Boats, Cars, Plane, Trains, Trams } from "./Life";
 import Panel from "./Panel";
 
 export type Category = "job" | "education" | "personal";
@@ -314,8 +315,11 @@ function CameraRig({ place, reducedMotion, view, panelOpen, api }: RigProps) {
         flyTo(target, place.zoom);
       }
     } else if (first.current) {
-      const z = Math.max(minZoom, startZoom());
-      apply(confine(BAIXA.clone(), z), z);
+      // ?at=x,y,zoom opens somewhere else (map metres east and north of Praça do Comércio), for checking things.
+      const at = new URLSearchParams(window.location.search).get("at")?.split(",").map(Number) ?? [];
+      const custom = at.length === 3 && at.every(Number.isFinite);
+      const z = Math.max(minZoom, custom ? at[2] : startZoom());
+      apply(confine(custom ? new Vector3(at[0], 0, -at[1]) : BAIXA.clone(), z), z);
       controls.update();
     }
     first.current = false;
@@ -537,8 +541,11 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       )}
       {roads && <Cars roads={roads.lines} />}
       {plan && <PlanLayer plan={plan} visible={planOn} />}
-      {plan && <Tram route={plan.tramRoute} />}
+      {plan && <Trams routes={plan.tramRoutes} />}
+      {plan && <Trains routes={plan.trainRoutes} />}
+      {plan && <Boats ferries={plan.ferryRoutes} sails={plan.sailingLanes} />}
       {manifest && <Bridge manifest={manifest} />}
+      {manifest && <Plane manifest={manifest} />}
 
       {chunks.map((c) => (
         <mesh key={c.id} geometry={c.geometry} material={buildingMaterial} position={c.position} raycast={noRaycast} />
@@ -650,7 +657,14 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
   const [touring, setTouring] = useState(false);
   const [hovered, setHovered] = useState(-1);
   const showStats = useMemo(() => new URLSearchParams(window.location.search).has("stats"), []);
-  const reducedMotion = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
+  // The city stands still for visitors whose system asks for reduced motion.
+  // ?motion=on shows it moving anyway, to preview it on such a system.
+  const reducedMotion = useMemo(
+    () =>
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+      new URLSearchParams(window.location.search).get("motion") !== "on",
+    [],
+  );
   const [stats, setStats] = useState<Stats>({ buildings: 0, triangles: 0, firstChunkMs: 0, loadMs: 0, fps: 0 });
   const onStats = useCallback<OnStats>((patch) => {
     setStats((prev) => {
