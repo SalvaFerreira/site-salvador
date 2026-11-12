@@ -15,8 +15,9 @@ varying float vSeed;
 varying float vRoof;
 varying float vSun;
 
-// Afternoon sun from the south-west.
-const vec3 SUN = vec3(-0.55, 0.62, 0.56);
+// Afternoon sun from the west-south-west: from the camera it lights the walls
+// facing south and leaves the ones facing east, and the streets beside them, in shade.
+const vec3 SUN = vec3(-0.72, 0.6, 0.34);
 
 void main() {
   vWall = wall;

@@ -1,7 +1,19 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { Color, MOUSE, TOUCH, Vector3, type BufferGeometry, type OrthographicCamera } from "three";
+import {
+  Color,
+  DoubleSide,
+  KeepStencilOp,
+  MeshBasicMaterial,
+  MOUSE,
+  NotEqualStencilFunc,
+  ReplaceStencilOp,
+  TOUCH,
+  Vector3,
+  type BufferGeometry,
+  type OrthographicCamera,
+} from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ACCENT_SLOTS, createBuildingMaterial } from "../city/buildingMaterial";
 import { BACKDROP, shared } from "../city/environment";
@@ -57,6 +69,7 @@ export const CATEGORY_COLOR: Record<Category | "none", string> = {
 interface Chunk {
   id: string;
   geometry: BufferGeometry;
+  shadow: BufferGeometry;
   position: [number, number, number];
 }
 
@@ -114,6 +127,26 @@ const FLIGHT_SECONDS = 2.4;
 const PANEL_WIDTH_PX = 620;
 
 const noRaycast = () => null;
+
+/**
+ * Shadows on the ground. They overlap a lot (every building casts one), so the
+ * stencil buffer lets each pixel be darkened only once.
+ */
+function createShadowMaterial(): MeshBasicMaterial {
+  return new MeshBasicMaterial({
+    color: "#232c47",
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false,
+    side: DoubleSide,
+    stencilWrite: true,
+    stencilRef: 1,
+    stencilFunc: NotEqualStencilFunc,
+    stencilFail: KeepStencilOp,
+    stencilZFail: KeepStencilOp,
+    stencilZPass: ReplaceStencilOp,
+  });
+}
 /** ?shot: no interface, for taking the preview images. */
 const SHOT = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("shot");
 
@@ -182,7 +215,7 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
         const c = order[i];
         triangles += built.triangles;
         buildings += c.buildings;
-        setChunks((prev) => [...prev, { id: c.id, geometry: built.geometry, position: [c.origin[0], 0, -c.origin[1]] }]);
+        setChunks((prev) => [...prev, { id: c.id, geometry: built.geometry, shadow: built.shadow, position: [c.origin[0], 0, -c.origin[1]] }]);
         for (const f of built.featured) {
           // A target near a neighbourhood border can match in two chunks: keep the closest.
           if ((best.get(f.index) ?? Infinity) <= f.distance) continue;
@@ -479,6 +512,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
   }, [stops]);
   const streetMaterial = useMemo(createStreetMaterial, []);
   const riverMaterial = useMemo(createRiverMaterial, []);
+  const shadowMaterial = useMemo(createShadowMaterial, []);
 
   useEffect(() => {
     shared.uPlan.value = planOn ? 1 : 0;
@@ -506,7 +540,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       <color attach="background" args={[BACKDROP]} />
       {/* Light for the few shaded objects: trees, cars, tram, bridge towers. */}
       <ambientLight intensity={2.1} />
-      <directionalLight position={[-0.55, 0.62, 0.56]} intensity={1.6} />
+      <directionalLight position={[-0.72, 0.6, 0.34]} intensity={1.6} />
 
       {/* Tejo: the modelled rectangle; land is drawn on top of it. */}
       {bbox && (
@@ -539,6 +573,17 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
 
       {chunks.map((c) => (
         <mesh key={c.id} geometry={c.geometry} material={buildingMaterial} position={c.position} raycast={noRaycast} />
+      ))}
+      {/* Shadows lie just above streets and grass, and are drawn after them. */}
+      {chunks.map((c) => (
+        <mesh
+          key={c.id}
+          geometry={c.shadow}
+          material={shadowMaterial}
+          position={[c.position[0], 0.7, c.position[2]]}
+          renderOrder={2}
+          raycast={noRaycast}
+        />
       ))}
 
       {/* The merged city is not raycast (a million triangles); each featured
@@ -762,7 +807,7 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
           orthographic
           flat
           dpr={[1, 2]}
-          gl={{ antialias: true, powerPreference: "high-performance" }}
+          gl={{ antialias: true, stencil: true, powerPreference: "high-performance" }}
           camera={{ position: VIEW_FROM.clone().multiplyScalar(CAMERA_DISTANCE).add(BAIXA), zoom: startZoom(), near: 100, far: 30000 }}
         >
           <Scene

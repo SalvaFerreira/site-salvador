@@ -126,11 +126,19 @@ export interface Featured {
 
 export interface BuiltChunk {
   geometry: BufferGeometry;
+  /** Flat shadows the buildings cast on the ground. */
+  shadow: BufferGeometry;
   triangles: number;
   featured: Featured[];
 }
 
 const SNAP_M = 60;
+
+/**
+ * How far a shadow reaches on the ground per metre of building height, in map
+ * metres (east, north). The sun is in the west-south-west, as in the building shader.
+ */
+const SHADOW_PER_M: [number, number] = [0.72, 0.34];
 
 function insideRing(coords: Float32Array, start: number, n: number, x: number, y: number): boolean {
   let inside = false;
@@ -218,6 +226,13 @@ export async function loadChunk(
   const seed = new Float32Array(maxVerts);
   const index = new Uint32Array(nVerts * 6 + (nVerts + nRings * 2) * 3);
 
+  // The shadow of a block on flat ground is its footprint slid along the
+  // ground, plus the strip each wall sweeps on the way.
+  const shadowPos = new Float32Array(maxVerts * 3);
+  const shadowIndex = new Uint32Array(index.length);
+  let sp = 0;
+  let six = 0;
+
   let p = 0; // vertices written
   let ix = 0; // indices written
   let ring = 0;
@@ -228,6 +243,8 @@ export async function loadChunk(
     const tag = featured.get(b);
     const s = seedOf(b * 131 + salt) * 0.999 + (tag ? 1 + tag.index + (tag.dark ? 100 : 0) : 0);
     const roofStart = vert;
+    const shadowX = SHADOW_PER_M[0] * h;
+    const shadowY = SHADOW_PER_M[1] * h;
     const holes: number[] = [];
     let buildingVerts = 0;
 
@@ -270,6 +287,22 @@ export async function loadChunk(
         index[ix++] = p + 2;
         index[ix++] = p + 3;
         p += 4;
+
+        // Only walls on the far side from the sun sweep shadow beyond the footprint.
+        if (dy * shadowX - dx * shadowY > 0) {
+          const corners = [ax, ay, cx, cy, cx + shadowX, cy + shadowY, ax + shadowX, ay + shadowY];
+          for (let k = 0; k < 4; k++) {
+            shadowPos[(sp + k) * 3] = corners[k * 2];
+            shadowPos[(sp + k) * 3 + 2] = -corners[k * 2 + 1];
+          }
+          shadowIndex[six++] = sp;
+          shadowIndex[six++] = sp + 1;
+          shadowIndex[six++] = sp + 2;
+          shadowIndex[six++] = sp;
+          shadowIndex[six++] = sp + 2;
+          shadowIndex[six++] = sp + 3;
+          sp += 4;
+        }
       }
       vert += n;
       buildingVerts += n;
@@ -301,7 +334,15 @@ export async function loadChunk(
       index[ix++] = p + i0;
       index[ix++] = p + i1;
       index[ix++] = p + i2;
+      shadowIndex[six++] = sp + i0;
+      shadowIndex[six++] = sp + i1;
+      shadowIndex[six++] = sp + i2;
     }
+    for (let i = 0; i < buildingVerts; i++) {
+      shadowPos[(sp + i) * 3] = flat[i * 2] + shadowX;
+      shadowPos[(sp + i) * 3 + 2] = -(flat[i * 2 + 1] + shadowY);
+    }
+    sp += buildingVerts;
     p += buildingVerts;
   }
 
@@ -313,7 +354,11 @@ export async function loadChunk(
   geometry.setIndex(new BufferAttribute(index.slice(0, ix), 1));
   geometry.computeBoundingSphere();
   geometry.computeBoundingBox();
-  return { geometry, triangles: ix / 3, featured: [...featured.values()] };
+  const shadow = new BufferGeometry();
+  shadow.setAttribute("position", new BufferAttribute(shadowPos.slice(0, sp * 3), 3));
+  shadow.setIndex(new BufferAttribute(shadowIndex.slice(0, six), 1));
+  shadow.computeBoundingSphere();
+  return { geometry, shadow, triangles: (ix + six) / 3, featured: [...featured.values()] };
 }
 
 /** Flat polygons on the ground from an LXB1 file: the land outline, the green spaces. */
