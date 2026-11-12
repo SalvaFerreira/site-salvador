@@ -80,8 +80,8 @@ void main() {
     // The geometry says which roofs are flat and grey (tall or modern buildings).
     float flatRoof = step(0.5, vWall.x);
     color = mix(tiles, uRoofFlat, flatRoof);
-    // Each face of a pitched roof catches the sun differently.
-    color *= 0.66 + 0.5 * clamp(vSun, 0.0, 1.0);
+    // Roofs are the brightest surfaces; each face of a pitched roof catches the sun differently.
+    color *= 0.84 + 0.34 * clamp(vSun, 0.0, 1.0);
     color = mix(color, accent * 0.82, lit);
     color = mix(color, uOff * 1.25, off);
   } else {
@@ -93,13 +93,20 @@ void main() {
     float pick = hash(vec3(seed * 53.9, 9.2, 2.3));
     int which = pick < 0.44 ? 0 : pick < 0.76 ? 1 : pick < 0.86 ? 2 : pick < 0.94 ? 3 : 4;
     vec3 facade = uWalls[which];
+    // No two buildings quite the same: a little lighter or darker, a little warmer or cooler.
+    float shade = hash(vec3(seed * 17.3, 3.1, 7.7)) - 0.5;
+    float warmth = hash(vec3(seed * 41.9, 5.3, 1.1)) - 0.5;
+    facade *= (1.0 + 0.07 * shade) * (vec3(1.0) + warmth * vec3(0.035, 0.0, -0.045));
     facade = mix(facade, accent, lit);
     facade = mix(facade, uOff, off);
 
     // Sunlit and shaded sides, a darker band where the wall meets the street.
-    float light = mix(0.6, 1.0, smoothstep(-0.25, 0.45, vSun));
-    light *= mix(0.8, 1.0, smoothstep(0.0, 6.0, up));
-    color = facade * light;
+    // Walls in the sun are warm, walls in the shade cooler and darker; the foot of
+    // every wall is darker still, where the street blocks the light from the sky.
+    float sunny = smoothstep(-0.25, 0.45, vSun);
+    float light = mix(0.6, 1.0, sunny);
+    light *= mix(0.66, 1.0, smoothstep(0.0, 7.0, up));
+    color = facade * light * mix(vec3(0.94, 0.97, 1.04), vec3(1.03, 1.0, 0.95), sunny);
 
     float floors = floor(height / FLOOR_H);
     float columns = floor(len / WINDOW_W);

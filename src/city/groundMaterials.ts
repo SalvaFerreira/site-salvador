@@ -17,25 +17,54 @@ void main() {
 }
 `;
 
-/** Grey asphalt, with a dashed centre line on the main roads. */
+/** Vertex shader for flat ground in scene coordinates: passes x and z on. */
+const groundVertex = /* glsl */ `
+varying vec2 vGround;
+
+void main() {
+  vec4 world = modelMatrix * vec4(position, 1.0);
+  vGround = world.xz;
+  gl_Position = projectionMatrix * viewMatrix * world;
+}
+`;
+
+/**
+ * Asphalt between lighter pavements, a dashed centre line on the main and
+ * secondary roads and solid edge lines on the main ones. The paint fades out
+ * when it would be thinner than a pixel.
+ */
 export function createStreetMaterial(): ShaderMaterial {
   return new ShaderMaterial({
     vertexShader: ribbonVertex,
     fragmentShader: /* glsl */ `
 uniform vec3 uAsphalt;
 uniform vec3 uPaint;
+uniform vec3 uPavement;
 varying vec3 vRoad;
 
 void main() {
-  vec3 color = uAsphalt;
-  float dashes = step(0.5, fract(vRoad.x / 14.0)) * (1.0 - smoothstep(0.03, 0.07, abs(vRoad.y)));
+  float across = abs(vRoad.y);
+  float main = step(vRoad.z, 0.5);
+  float secondary = step(0.5, vRoad.z) * step(vRoad.z, 1.5);
+  // Pavement along both sides: a fixed share of the ribbon, with a darker kerb.
+  float aa = fwidth(vRoad.y) * 1.5;
+  float pavement = smoothstep(0.76 - aa, 0.76 + aa, across);
+  vec3 color = mix(uAsphalt, uPavement, pavement);
+  color *= 1.0 - 0.12 * (smoothstep(0.7 - aa, 0.74, across) - smoothstep(0.76, 0.8 + aa, across));
+
   float fine = smoothstep(0.5, 0.15, fwidth(vRoad.x) / 14.0);
-  color = mix(color, uPaint, dashes * fine * step(vRoad.z, 0.5) * 0.8);
+  float dashes = step(0.5, fract(vRoad.x / 14.0)) * (1.0 - smoothstep(0.03, 0.07, across));
+  color = mix(color, uPaint, dashes * fine * (main * 0.8 + secondary * 0.6));
+  float edges = smoothstep(0.62, 0.64, across) * (1.0 - smoothstep(0.66, 0.68, across));
+  color = mix(color, uPaint, edges * fine * main * 0.7);
   gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>
 }
 `,
-    uniforms: { ...shared, uAsphalt: { value: new Color("#d2d0cb") }, uPaint: { value: new Color("#f4f2ed") } },
+    uniforms: { ...shared, uAsphalt: { value: new Color("#c9c7c3") },
+      uPaint: { value: new Color("#f6f4ef") },
+      uPavement: { value: new Color("#e2ded6") },
+    },
     // Streets overlap at every junction; not writing depth keeps them from fighting.
     depthWrite: false,
   });
@@ -239,11 +268,68 @@ void main() {
   vec2 p = vWorld.xz * vec2(0.012, 0.04);
   float ripples = noise(p + vec2(uTime * 0.06, uTime * 0.02)) * noise(p * 2.1 - vec2(uTime * 0.04, 0.0));
   vec3 color = uWater * (0.96 + 0.16 * smoothstep(0.3, 0.75, ripples));
+  // Glints: the sun caught for a moment on a few wave tops. Only close up, where they can be seen.
+  float near = smoothstep(1.5, 0.3, fwidth(vWorld.x));
+  if (near > 0.0) {
+    float glint = smoothstep(0.82, 0.9, noise(vWorld.xz * 0.11 + vec2(uTime * 0.35, -uTime * 0.2)) * noise(vWorld.xz * 0.07 - uTime * 0.15));
+    color = mix(color, vec3(0.97, 0.96, 0.92), glint * 0.55 * near);
+  }
   gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>
 }
 `,
     uniforms: { ...shared, uWater: { value: new Color("#8fa9bd") } },
+  });
+}
+
+/**
+ * Grass, woods and pitches: one colour, broken up by slow patches of lighter
+ * and darker green so large parks do not look like flat paper.
+ */
+export function createGrassMaterial(color: string): ShaderMaterial {
+  return new ShaderMaterial({
+    vertexShader: groundVertex,
+    fragmentShader: /* glsl */ `
+uniform vec3 uColor;
+varying vec2 vGround;
+
+void main() {
+  // Broad, soft patches from a few sines: much cheaper than noise over the
+  // large areas of green seen in the wide view.
+  vec2 p = vGround;
+  float patches = 0.5 + 0.25 * sin(p.x * 0.021 + 1.7 * sin(p.y * 0.017)) + 0.25 * sin(p.y * 0.029 + 1.3 * sin(p.x * 0.013));
+  vec3 color = uColor * (0.93 + 0.13 * patches) * vec3(1.0 + 0.03 * (patches - 0.5), 1.0, 1.0 - 0.04 * (patches - 0.5));
+  gl_FragColor = vec4(color, 1.0);
+  #include <colorspace_fragment>
+}
+`,
+    uniforms: { uColor: { value: new Color(color) } },
+  });
+}
+
+/**
+ * Calcada portuguesa in the big squares: cream limestone with the Rossio's
+ * wave of dark basalt, drawn faintly so it reads as texture, not as a pattern.
+ */
+export function createCalcadaMaterial(): ShaderMaterial {
+  return new ShaderMaterial({
+    vertexShader: groundVertex,
+    fragmentShader: /* glsl */ `
+varying vec2 vGround;
+
+void main() {
+  vec2 p = vGround;
+  float wave = sin(p.x * 0.22 + 2.2 * sin(p.y * 0.11));
+  float band = smoothstep(0.55, 0.75, wave);
+  // Seen from far the waves would shimmer: fade them to the average tone.
+  float fine = 1.0 - smoothstep(0.6, 2.0, fwidth(p.x));
+  vec3 stone = vec3(0.93, 0.91, 0.86);
+  vec3 basalt = vec3(0.62, 0.61, 0.6);
+  vec3 color = mix(stone, mix(stone, basalt, 0.3), mix(0.25, band, fine));
+  gl_FragColor = vec4(color, 1.0);
+  #include <colorspace_fragment>
+}
+`,
   });
 }
 

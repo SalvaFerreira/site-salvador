@@ -1,0 +1,208 @@
+"""Street furniture and buses: crossings, traffic lights, bus lines, the big
+squares paved in calçada, and the north end of the Vasco da Gama bridge.
+
+Input:  OpenStreetMap via Overpass (cached in data/raw/), data/raw/_land.wkb and
+        public/data/manifest.json (from 02_process.py), data/raw/roads_*.json
+Output: public/data/street.bin   crossings and traffic lights (layout below)
+        public/data/bus.bin      bus lines (LXR1 lines, class = line number in street.json)
+        public/data/street.json  index, squares, bridge
+
+street.bin, little-endian, every coordinate in half metres from the scene origin:
+    "LXS1", u32 crossings C, u32 lights L, u32 junctions J
+    i16[C] x, i16[C] y, i16[L] x, i16[L] y, u16[L] junction
+    u8[C] angle of the street (0..255 = 0..180 degrees, from east towards north)
+    u8[C] kind (0 marked crossing, 1 crossing at traffic lights)
+    u8[L] angle of the street the light stands on
+
+Data (c) OpenStreetMap contributors, ODbL.
+"""
+import importlib
+import json
+import math
+import struct
+
+import numpy as np
+import shapely
+from shapely.geometry import LineString, Point, Polygon, box
+from shapely.ops import linemerge, unary_union
+from shapely.strtree import STRtree
+
+from config import EAST, NORTH, OUT, RAW, SOUTH, WEST
+
+D = importlib.import_module("01_download")
+P = importlib.import_module("02_process")
+L = importlib.import_module("05_plan")
+
+UNITS = 2
+MARKED = {"zebra", "marked", "uncontrolled", "traffic_signals"}
+MARKINGS = {"zebra", "yes", "lines", "dashes", "surface", "dots", "ladder"}
+JUNCTION_M = 30          # traffic lights closer than this work together
+MAX_BUS_LINES = 80
+BUS_SIMPLIFY_M = 2.0
+SQUARES = ["Praça do Comércio", "Praça Dom Pedro IV", "Rossio"]
+VDG_DECK_M = 14          # height of the bridge's viaduct near the north shore
+
+
+def download():
+    area = D.bbox(SOUTH, WEST, NORTH, EAST)
+    NL = chr(10)
+    D.fetch("street_points", "(" + 'node["highway"="crossing"](' + area + ");"
+            + 'node["highway"="traffic_signals"](' + area + ");" + ");" + NL + "out;")
+    # Ways once, with their geometry; relations with their member list only.
+    D.fetch("bus_relations", 'relation["route"="bus"](' + area + ");" + NL + "out body;")
+    D.fetch("bus_ways", 'relation["route"="bus"](' + area + ")->.r;" + NL + "way(r.r)(" + area + ");" + NL + "out tags geom;")
+    names = "|".join(SQUARES)
+    D.fetch("squares", "(" + 'way["name"~"^(' + names + ')$"]["highway"="pedestrian"](' + area + ");"
+            + 'way["name"~"^(' + names + ')$"]["place"="square"](' + area + ");"
+            + 'relation["name"~"^(' + names + ')$"]["place"="square"](' + area + ");" + ");" + NL + "out body geom;")
+    D.fetch("vasco_da_gama", 'way["name"="Ponte Vasco da Gama"]["bridge"](' + area + ");" + NL + "out tags geom;")
+
+
+def street_lines():
+    lines = []
+    for f in sorted(RAW.glob("roads_*.json")):
+        for el in json.loads(f.read_text(encoding="utf-8"))["elements"]:
+            pts = el.get("geometry") or []
+            if len(pts) >= 2 and el.get("tags", {}).get("area") != "yes":
+                lines.append(LineString(P.local_coords(pts)))
+    return lines
+
+
+def angle_of_street(tree, lines, x, y):
+    """Direction of the nearest street at a point, 0..pi."""
+    p = Point(x, y)
+    line = lines[tree.nearest(p)]
+    d = line.project(p)
+    a = line.interpolate(max(0.0, d - 3))
+    b = line.interpolate(min(line.length, d + 3))
+    return math.atan2(b.y - a.y, b.x - a.x) % math.pi, line.distance(p)
+
+
+def points(land):
+    tree_lines = street_lines()
+    tree = STRtree(tree_lines)
+    crossings, lights = [], []
+    for el in P.load("street_points"):
+        tags = el.get("tags", {})
+        (x, y), = P.local_coords([el])
+        if not land.contains(Point(x, y)):
+            continue
+        if tags.get("highway") == "traffic_signals":
+            angle, dist = angle_of_street(tree, tree_lines, x, y)
+            if dist < 15:
+                lights.append((x, y, angle))
+            continue
+        marked = tags.get("crossing") in MARKED or tags.get("crossing:markings") in MARKINGS
+        if not marked or tags.get("crossing:markings") == "no":
+            continue
+        angle, dist = angle_of_street(tree, tree_lines, x, y)
+        if dist < 6:
+            kind = 1 if tags.get("crossing") == "traffic_signals" or tags.get("crossing:signals") == "yes" else 0
+            crossings.append((x, y, angle, kind))
+
+    # Lights near each other belong to one junction and change together.
+    blobs = unary_union([Point(x, y).buffer(JUNCTION_M / 2) for x, y, _ in lights])
+    blobs = list(blobs.geoms) if hasattr(blobs, "geoms") else [blobs]
+    blob_tree = STRtree(blobs)
+    junction = [int(blob_tree.query(Point(x, y), predicate="intersects")[0]) for x, y, _ in lights]
+    return crossings, lights, junction, len(blobs)
+
+
+def write_points(crossings, lights, junction, junctions):
+    def q(v):
+        return np.round(np.asarray(v, dtype=float) * UNITS).astype("<i2")
+
+    def a8(v):
+        return np.minimum(255, np.round(np.asarray(v, dtype=float) / math.pi * 256)).astype(np.uint8)
+
+    c = np.asarray(crossings, dtype=float).reshape(-1, 4)
+    lt = np.asarray(lights, dtype=float).reshape(-1, 3)
+    data = b"".join([
+        struct.pack("<4sIII", b"LXS1", len(c), len(lt), junctions),
+        q(c[:, 0]).tobytes(), q(c[:, 1]).tobytes(), q(lt[:, 0]).tobytes(), q(lt[:, 1]).tobytes(),
+        np.asarray(junction, dtype="<u2").tobytes(),
+        a8(c[:, 2]).tobytes(), c[:, 3].astype(np.uint8).tobytes(), a8(lt[:, 2]).tobytes(),
+    ])
+    (OUT / "street.bin").write_bytes(data)
+    return len(data)
+
+
+def bus_lines(view):
+    """One way through each bus line (by its number): the longest unbroken stretch in view."""
+    ways = {el["id"]: LineString(P.local_coords(el["geometry"])) for el in P.load("bus_ways") if len(el.get("geometry") or []) >= 2}
+    best = {}
+    for rel in P.load("bus_relations"):
+        tags = rel.get("tags", {})
+        ref = tags.get("ref") or str(rel["id"])
+        parts = [ways[m["ref"]] for m in rel.get("members", []) if m["type"] == "way" and m["ref"] in ways]
+        if not parts:
+            continue
+        joined = unary_union(parts)
+        merged = (joined if joined.geom_type == "LineString" else linemerge(joined)).intersection(view)
+        pieces = [g for g in getattr(merged, "geoms", [merged]) if g.geom_type == "LineString"]
+        if not pieces:
+            continue
+        line = max(pieces, key=lambda g: g.length)
+        if line.length > 1500 and (ref not in best or line.length > best[ref].length):
+            best[ref] = line
+    chosen = sorted(best.items(), key=lambda kv: -kv[1].length)[:MAX_BUS_LINES]
+    lines = [line.simplify(BUS_SIMPLIFY_M) for _, line in chosen]
+    info = L.write_lines(OUT / "bus.bin", lines, list(range(len(lines))), 1)
+    info["lines"] = [ref for ref, _ in chosen]
+    info["km"] = round(sum(line.length for line in lines) / 1000, 1)
+    return info
+
+
+def squares():
+    out = []
+    for el in P.load("squares"):
+        for poly in P.polygons_of(P.element_polygon(el)):
+            if poly.area > 2000:
+                out.append([[round(x, 1), round(y, 1)] for x, y in poly.simplify(1.0).exterior.coords[:-1]])
+    return out
+
+
+def vasco_da_gama(view, land):
+    """The carriageways of the bridge over the river, inside the map."""
+    lines = []
+    for el in P.load("vasco_da_gama"):
+        line = LineString(P.local_coords(el["geometry"]))
+        over_water = line.difference(land.buffer(-20))
+        clipped = over_water.intersection(view)
+        for part in getattr(clipped, "geoms", [clipped]):
+            if part.geom_type == "LineString" and part.length > 40:
+                lines.append([[round(x, 1), round(y, 1)] for x, y in part.simplify(1.0).coords])
+    return {"deck": VDG_DECK_M, "lines": lines}
+
+
+def main():
+    download()
+    manifest = json.loads((OUT / "manifest.json").read_text(encoding="utf-8"))
+    view = box(*manifest["view"])
+    land = shapely.from_wkb((RAW / "_land.wkb").read_bytes())
+
+    crossings, lights, junction, junctions = points(land)
+    size = write_points(crossings, lights, junction, junctions)
+    bus = bus_lines(view)
+    index = {
+        "attribution": "Crossings, traffic lights, bus lines and squares (c) OpenStreetMap contributors, ODbL",
+        "file": "street.bin",
+        "unitsPerMetre": UNITS,
+        "crossings": len(crossings),
+        "lights": len(lights),
+        "junctions": junctions,
+        "bus": {"file": bus["file"], "unitsPerMetre": bus["unitsPerMetre"], "lines": bus["lines"]},
+        "squares": squares(),
+        "vascoDaGama": vasco_da_gama(view, land),
+    }
+    text = json.dumps(index, separators=(",", ":"), ensure_ascii=False)
+    (OUT / "street.json").write_text(text, encoding="utf-8")
+    print(f"street.bin: {len(crossings)} crossings, {len(lights)} traffic lights in {junctions} junctions, {size / 1e3:.0f} kB")
+    print(f"bus.bin: {len(bus['lines'])} lines, {bus['km']} km, {bus['bytes'] / 1e3:.0f} kB")
+    print(f"street.json: {len(index['squares'])} squares, {len(index['vascoDaGama']['lines'])} bridge lines, {len(text.encode()) / 1e3:.0f} kB")
+    total = sum(f.stat().st_size for f in OUT.iterdir() if f.is_file())
+    print(f"all city data: {total / 1e6:.2f} MB")
+
+
+if __name__ == "__main__":
+    main()

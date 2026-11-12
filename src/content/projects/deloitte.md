@@ -2,11 +2,11 @@
 title: "Deloitte"
 label: "Deloitte"
 category: "job"
-place: "Restelo"
+place: "Amoreiras"
 role: "AI & Data Analyst · Technology & Transformation (Financial Services)"
 period: "Sep 2026 – Present"
-# Restelo Business Center, Rua Luís Castanho de Almeida 2.
-coordinates: [-9.208558, 38.706167]
+# Deloitte Hub, Avenida Engenheiro Duarte Pacheco 7 (Amoreiras), as placed in OpenStreetMap.
+coordinates: [-9.1571308, 38.724672]
 order: 3
 # Start: orders the journey line and the Tour.
 date: "2026-09"

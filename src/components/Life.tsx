@@ -22,6 +22,7 @@ import { createRunwayMaterial, createShadowMaterial, createTrackMaterial, create
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { SHADOW_PER_M } from "../city/loadCity";
 import { COVER, randomFrom, scatterOver, type CoverData } from "./Extras";
+import { AMBER, axisOf, crossingBusy, lightState, RED, useViewBox, type StreetData } from "./Street";
 
 const noRaycast = () => null;
 const WATER_Y = -2;
@@ -184,8 +185,80 @@ function createCarGeometry(): BufferGeometry {
   ]);
 }
 
-/** Cars driving through the city, from street to street. */
-export function Cars({ roads }: { roads: Polyline[] }) {
+/** Where a car may have to stop on a way: distance along it, and what is there. */
+interface Stops {
+  at: Float32Array;
+  /** A light: 1 + (junction * 2 + direction). A zebra crossing: -(1 + its index). */
+  code: Int32Array;
+}
+
+/** How close to a way a traffic light or a crossing must be to count for it, in metres. */
+const LIGHT_NEAR_M = 9;
+const CROSSING_NEAR_M = 4;
+
+/** The lights and zebra crossings along each way, in order. */
+function findStops(ways: Way[], street: StreetData): Stops[] {
+  const CELL = 40;
+  const grid = new Map<number, number[]>();
+  const add = (x: number, y: number, item: number) => {
+    const k = Math.floor(x / CELL) * 100003 + Math.floor(y / CELL);
+    const list = grid.get(k);
+    if (list) list.push(item);
+    else grid.set(k, [item]);
+  };
+  const { lights, crossings } = street;
+  const nLights = lights.x.length;
+  // Items: lights as 0..L-1, zebra crossings after them (crossings at traffic lights follow the lights).
+  for (let i = 0; i < nLights; i++) add(lights.x[i], lights.y[i], i);
+  for (let i = 0; i < crossings.x.length; i++) if (crossings.kind[i] === 0) add(crossings.x[i], crossings.y[i], nLights + i);
+
+  return ways.map((w) => {
+    const found = new Map<number, { at: number; code: number }>();
+    const n = w.lengths.length;
+    for (let k = 1; k < n; k++) {
+      const ax = w.points[(k - 1) * 2];
+      const ay = w.points[(k - 1) * 2 + 1];
+      const bx = w.points[k * 2];
+      const by = w.points[k * 2 + 1];
+      const len = w.lengths[k] - w.lengths[k - 1] || 1;
+      const ux = (bx - ax) / len;
+      const uy = (by - ay) / len;
+      const heading = Math.atan2(uy, ux);
+      const x0 = Math.floor((Math.min(ax, bx) - LIGHT_NEAR_M) / CELL);
+      const x1 = Math.floor((Math.max(ax, bx) + LIGHT_NEAR_M) / CELL);
+      const y0 = Math.floor((Math.min(ay, by) - LIGHT_NEAR_M) / CELL);
+      const y1 = Math.floor((Math.max(ay, by) + LIGHT_NEAR_M) / CELL);
+      for (let cx = x0; cx <= x1; cx++) {
+        for (let cy = y0; cy <= y1; cy++) {
+          for (const item of grid.get(cx * 100003 + cy) ?? []) {
+            const light = item < nLights;
+            const x = light ? lights.x[item] : crossings.x[item - nLights];
+            const y = light ? lights.y[item] : crossings.y[item - nLights];
+            const t = (x - ax) * ux + (y - ay) * uy;
+            if (t < 0 || t > len) continue;
+            const off = Math.abs((x - ax) * uy - (y - ay) * ux);
+            if (off > (light ? LIGHT_NEAR_M : CROSSING_NEAR_M)) continue;
+            // One stop per junction: the first of its lights the car comes to.
+            const key = light ? -1 - lights.junction[item] : item;
+            if (found.has(key)) continue;
+            const code = light ? 1 + lights.junction[item] * 2 + axisOf(heading) : -(1 + item - nLights);
+            found.set(key, { at: w.lengths[k - 1] + t, code });
+          }
+        }
+      }
+    }
+    const list = [...found.values()].sort((p, q) => p.at - q.at);
+    return { at: Float32Array.from(list, (f) => f.at), code: Int32Array.from(list, (f) => f.code) };
+  });
+}
+
+/**
+ * Cars driving through the city, from street to street. They stop at red
+ * lights and at zebra crossings while someone is crossing, one to three car
+ * lengths back so that a few waiting cars look like a queue (cars do not
+ * otherwise see each other). Only the cars on screen are drawn.
+ */
+export function Cars({ roads, street }: { roads: Polyline[]; street: StreetData | null }) {
   const mesh = useRef<InstancedMesh>(null);
   const state = useMemo(() => {
     const ways = buildWays(roads);
@@ -195,6 +268,7 @@ export function Cars({ roads }: { roads: Polyline[] }) {
     const way = new Int32Array(count);
     const distance = new Float32Array(count);
     const speed = new Float32Array(count);
+    const next = new Int16Array(count);
     for (let i = 0; i < count; i++) {
       // More cars on longer streets.
       let target = random() * total;
@@ -208,31 +282,50 @@ export function Cars({ roads }: { roads: Polyline[] }) {
       distance[i] = random() * ways[pick].total;
       speed[i] = 0.8 + random() * 0.4;
     }
-    return { ways, way, distance, speed, count, random };
+    const colorRandom = randomFrom(99);
+    const colors = Array.from({ length: count }, () => CAR_COLORS[Math.floor(colorRandom() * CAR_COLORS.length)]);
+    return { ways, way, distance, speed, next, count, random, colors };
   }, [roads]);
-
-  useLayoutEffect(() => {
-    const m = mesh.current;
-    if (!m) return;
-    const random = randomFrom(99);
-    for (let i = 0; i < state.count; i++) m.setColorAt(i, CAR_COLORS[Math.floor(random() * CAR_COLORS.length)]);
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
-  }, [state]);
+  const stops = useMemo(() => (street ? findStops(state.ways, street) : null), [state, street]);
 
   const dummy = useMemo(() => new Object3D(), []);
   const spot = useMemo<Spot>(() => ({ x: 0, y: 0, height: 0, heading: 0 }), []);
   const geometry = useMemo(createCarGeometry, []);
+  const view = useViewBox();
 
   useFrame((_, delta) => {
     const m = mesh.current;
     if (!m || !state.count) return;
     // A long pause (a hidden tab) must not send every car flying down the road.
     const dt = Math.min(delta, 0.1);
-    const { ways, way, distance, speed, random } = state;
+    const time = shared.uTime.value;
+    const { ways, way, distance, speed, next, random, colors } = state;
+    const { box, zoom } = view();
+    // In the widest view a car would be a pixel or two: they keep driving but are not drawn.
+    const draw = zoom >= 0.3;
+    let shown = 0;
     for (let i = 0; i < state.count; i++) {
       let w = ways[way[i]];
       const base = w.cls === 0 ? 14 : w.cls === 1 ? 9 : 6; // m/s
-      distance[i] += base * speed[i] * dt;
+      let step = base * speed[i] * dt;
+
+      const s = stops?.[way[i]];
+      if (s) {
+        while (next[i] < s.at.length && s.at[next[i]] < distance[i] + 0.5) next[i]++;
+        if (next[i] < s.at.length) {
+          const code = s.code[next[i]];
+          const gap = s.at[next[i]] - distance[i] - (3 + (i % 3) * 8.5);
+          let closed: boolean;
+          if (code > 0) {
+            const light = lightState(Math.floor((code - 1) / 2), (code - 1) % 2, time);
+            // On amber, a car too close to stop carries on.
+            closed = light === RED || (light === AMBER && gap > 8);
+          } else closed = crossingBusy(-code - 1, time);
+          if (closed && gap < 40) step = Math.min(step, Math.max(0, gap) * 2.5 * dt);
+        }
+      }
+
+      distance[i] += step;
       while (distance[i] > w.total) {
         distance[i] -= w.total;
         // Turn into a street that continues from here; at a dead end, start again somewhere else.
@@ -241,17 +334,24 @@ export function Cars({ roads }: { roads: Polyline[] }) {
           way[i] = Math.floor(random() * ways.length);
           distance[i] = 0;
         }
+        next[i] = 0;
         w = ways[way[i]];
       }
+      if (!draw) continue;
       along(w, distance[i], spot);
+      if (spot.x < box[0] || spot.x > box[2] || spot.y < box[1] || spot.y > box[3]) continue;
       // Keep to the right-hand side of the road.
       const side = w.cls === 2 ? 1.6 : 2.4;
       dummy.position.set(spot.x + Math.sin(spot.heading) * side, 0.45, -(spot.y - Math.cos(spot.heading) * side));
       dummy.rotation.y = spot.heading;
       dummy.updateMatrix();
-      m.setMatrixAt(i, dummy.matrix);
+      m.setMatrixAt(shown, dummy.matrix);
+      m.setColorAt(shown, colors[i]);
+      shown++;
     }
+    m.count = shown;
     m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
   });
 
   if (!state.count) return null;

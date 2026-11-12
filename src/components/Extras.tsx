@@ -17,7 +17,7 @@ import {
   type OrthographicCamera,
 } from "three";
 import { shared } from "../city/environment";
-import { createShadowMaterial, createTrafficMaterial } from "../city/groundMaterials";
+import { createGrassMaterial, createShadowMaterial, createTrafficMaterial } from "../city/groundMaterials";
 import { buildRibbons } from "../city/lines";
 import { loadShapes, SHADOW_PER_M, type Manifest } from "../city/loadCity";
 
@@ -88,6 +88,14 @@ const WOODLAND_M2_PER_TREE = 230;
 const WOODLAND_TREES_MAX = 45000;
 /** Trees are drawn in square tiles this wide, so that only the ones near the view are drawn. */
 const TREE_TILE_M = 1200;
+/** Ground cover classes drawn as grass: woodland, grass and scrub, pitches. */
+const GREEN_COVER = new Set([0, 1, 2]);
+const grassMaterials = new Map<string, ReturnType<typeof createGrassMaterial>>();
+function grassMaterial(color: string) {
+  if (!grassMaterials.has(color)) grassMaterials.set(color, createGrassMaterial(color));
+  return grassMaterials.get(color)!;
+}
+
 const TREE_COLORS = ["#86a676", "#7a9b6c", "#92b07f", "#6f8f64", "#9bb385"].map((c) => new Color(c));
 
 /** A low-poly canopy: lighter on top, darker underneath. */
@@ -288,14 +296,23 @@ export function Parks({ plan, cover }: ParksProps) {
     <>
       {/* Ground cover lies under the council's green spaces, which are more detailed. */}
       {cover &&
-        [...cover].map(([cls, geometry]) => (
-          <mesh key={cls} geometry={geometry} position-y={0.05 + cls * 0.01} renderOrder={-1.5} raycast={noRaycast}>
-            <meshBasicMaterial color={COVER_COLORS[cls] ?? "#dad4c8"} />
-          </mesh>
-        ))}
-      <mesh geometry={green} position-y={0.15} renderOrder={-1} raycast={noRaycast}>
-        <meshBasicMaterial color="#c6d6b3" />
-      </mesh>
+        [...cover].map(([cls, geometry]) =>
+          GREEN_COVER.has(cls) ? (
+            <mesh
+              key={cls}
+              geometry={geometry}
+              material={grassMaterial(COVER_COLORS[cls])}
+              position-y={0.05 + cls * 0.01}
+              renderOrder={-1.5}
+              raycast={noRaycast}
+            />
+          ) : (
+            <mesh key={cls} geometry={geometry} position-y={0.05 + cls * 0.01} renderOrder={-1.5} raycast={noRaycast}>
+              <meshBasicMaterial color={COVER_COLORS[cls] ?? "#dad4c8"} />
+            </mesh>
+          ),
+        )}
+      <mesh geometry={green} material={grassMaterial("#c6d6b3")} position-y={0.15} renderOrder={-1} raycast={noRaycast} />
       {tiles.map((tile, i) => (
         <group key={i}>
           <primitive object={tile.canopies} />

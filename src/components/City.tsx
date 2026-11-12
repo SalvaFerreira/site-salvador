@@ -8,9 +8,10 @@ import { BACKDROP, shared } from "../city/environment";
 import { createHaloMaterial, createRiverMaterial, createShadowMaterial, createStreetMaterial, STREET_HALF_WIDTH } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type Featured, type Manifest } from "../city/loadCity";
-import { Bridge, BRIDGE_DECK_M, loadCover, loadPlan, Parks, type CoverData, type PlanData } from "./Extras";
+import { Bridge, loadCover, loadPlan, Parks, type CoverData, type PlanData } from "./Extras";
 import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
 import Panel from "./Panel";
+import { Buses, Calcada, Crossings, loadStreet, TrafficLights, VascoDaGama, type StreetData } from "./Street";
 
 export type Category = "job" | "education" | "personal";
 
@@ -115,10 +116,13 @@ const SCREEN_RIGHT = new Vector3(VIEW_FROM.z, 0, -VIEW_FROM.x).normalize();
 const SCREEN_UP = new Vector3(-VIEW_FROM.x, 0, -VIEW_FROM.z).normalize();
 const CAMERA_DISTANCE = 9000;
 // Scene origin is Praça do Comércio; the Baixa grid starts just north of it.
+// Only used before the places are known.
 const BAIXA = new Vector3(0, 0, -350);
 /** The opening view shows about this many metres of city across the screen. */
 const START_WIDTH_M = 1200;
 const MAX_ZOOM = 5;
+/** Height of the label of the spot on the Vasco da Gama bridge (its deck is about 14 m up). */
+const NOW_LABEL_Y = 26;
 const FLIGHT_SECONDS = 2.4;
 const PANEL_WIDTH_PX = 620;
 
@@ -147,6 +151,7 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
   const [places, setPlaces] = useState<Place[]>([]);
   const [plan, setPlan] = useState<PlanData | null>(null);
   const [cover, setCover] = useState<{ data: CoverData; shapes: Map<number, BufferGeometry> } | null>(null);
+  const [street, setStreet] = useState<StreetData | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -161,6 +166,9 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
         (lines) => !cancelled && setRoads({ lines, geometry: buildRibbons(lines, STREET_HALF_WIDTH, 0.4) }),
       );
       loadPlan().then((p) => !cancelled && setPlan(p));
+      loadStreet()
+        .then((d) => !cancelled && setStreet(d))
+        .catch((error) => console.error("Street detail failed to load", error));
       loadCover()
         .then(async (data) => ({ data, shapes: await loadShapesByClass(data.file, data.unitsPerMetre) }))
         .then((c) => !cancelled && setCover(c));
@@ -179,13 +187,15 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
       setPlaces(
         located
           .filter((t) => t.kind !== "work")
-          .map((t) => ({ index: t.index, x: t.x, z: -t.y, height: 0, radius: 0, labelY: BRIDGE_DECK_M + 6, zoom: 0.9 })),
+          .map((t) => ({ index: t.index, x: t.x, z: -t.y, height: 0, radius: 0, labelY: NOW_LABEL_Y, zoom: 1.4 })),
       );
       const best = new Map<number, number>();
 
-      // Nearest neighbourhoods first, so the Baixa appears before the suburbs.
+      // Neighbourhoods nearest the middle of Salvador's places first, so the opening view fills in first.
+      const cx = located.reduce((sum, t) => sum + t.x, 0) / Math.max(1, located.length);
+      const cy = located.reduce((sum, t) => sum + t.y, 0) / Math.max(1, located.length);
       const order = [...m.chunks].sort(
-        (a, b) => Math.hypot(a.origin[0], a.origin[1] + BAIXA.z) - Math.hypot(b.origin[0], b.origin[1] + BAIXA.z),
+        (a, b) => Math.hypot(a.origin[0] - cx, a.origin[1] - cy) - Math.hypot(b.origin[0] - cx, b.origin[1] - cy),
       );
       const pending = order.map((c, i) => loadChunk(c, m.unitsPerMetre, i * 7919, targets));
       let triangles = 0;
@@ -219,7 +229,7 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
     };
   }, [stops, projects, onStats]);
 
-  return { manifest, land, roads, chunks, places, plan, cover };
+  return { manifest, land, roads, chunks, places, plan, cover, street };
 }
 
 /** Runs the clock that moves everything in the city, and measures the frame rate. */
@@ -241,6 +251,8 @@ function Clock({ onStats }: { onStats: OnStats }) {
 
 interface RigProps {
   place: Place | null;
+  /** Every place on the map, in scene coordinates: the opening view shows them all. */
+  overview: Vector3[];
   reducedMotion: boolean;
   /** The part of the map the camera may show: [minX, minY, maxX, maxY] in map metres. */
   view: [number, number, number, number];
@@ -252,7 +264,7 @@ interface RigProps {
  * Keeps the fixed viewing angle and the edges of the map out of sight, flies
  * to the selected place, and answers the zoom and home buttons.
  */
-function CameraRig({ place, reducedMotion, view, panelOpen, api }: RigProps) {
+function CameraRig({ place, overview, reducedMotion, view, panelOpen, api }: RigProps) {
   const camera = useThree((s) => s.camera) as OrthographicCamera;
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const size = useThree((s) => s.size);
@@ -264,6 +276,34 @@ function CameraRig({ place, reducedMotion, view, panelOpen, api }: RigProps) {
     const [minX, minY, maxX, maxY] = view;
     return (reach(size.width, size.height, 1) / (Math.min(maxX - minX, maxY - minY) / 2)) * 1.01;
   }, [view, size]);
+
+  // The opening view (and the home button): all of Salvador's places on screen
+  // at once, clear of the top bar and the controls, so nobody has to move the map.
+  const home = useMemo(() => {
+    if (overview.length < 2) return { target: BAIXA.clone(), zoom: Math.max(minZoom, startZoom()) };
+    let minR = Infinity, maxR = -Infinity, minU = Infinity, maxU = -Infinity;
+    for (const p of overview) {
+      const r = p.dot(SCREEN_RIGHT);
+      const u = p.dot(SCREEN_UP);
+      minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+      minU = Math.min(minU, u); maxU = Math.max(maxU, u);
+    }
+    const sides = Math.min(170, size.width * 0.12); // labels are centred on their place
+    const top = (document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 100) + 56;
+    const bottom = 70;
+    const zoom = Math.min(
+      MAX_ZOOM,
+      Math.max(
+        minZoom,
+        Math.min((size.width - 2 * sides) / Math.max(1, maxR - minR), (size.height - top - bottom) / Math.max(1, (maxU - minU) * SIN_ELEVATION)),
+      ),
+    );
+    // Centre of the places, then moved so they sit in the middle of the free part of the screen.
+    const target = new Vector3()
+      .addScaledVector(SCREEN_RIGHT, (minR + maxR) / 2)
+      .addScaledVector(SCREEN_UP, (minU + maxU) / 2 + (top - bottom) / 2 / (zoom * SIN_ELEVATION));
+    return { target, zoom };
+  }, [overview, size, minZoom]);
 
   /** Moves a look-at point so that nothing outside the map is on screen at this zoom. */
   const confine = useCallback(
@@ -328,8 +368,8 @@ function CameraRig({ place, reducedMotion, view, panelOpen, api }: RigProps) {
       // ?at=x,y,zoom opens somewhere else (map metres east and north of Praça do Comércio), for checking things.
       const at = new URLSearchParams(window.location.search).get("at")?.split(",").map(Number) ?? [];
       const custom = at.length === 3 && at.every(Number.isFinite);
-      const z = Math.max(minZoom, custom ? at[2] : startZoom());
-      apply(confine(custom ? new Vector3(at[0], 0, -at[1]) : BAIXA.clone(), z), z);
+      const z = Math.max(minZoom, custom ? at[2] : home.zoom);
+      apply(confine(custom ? new Vector3(at[0], 0, -at[1]) : home.target.clone(), z), z);
       controls.update();
     }
     first.current = false;
@@ -348,12 +388,12 @@ function CameraRig({ place, reducedMotion, view, panelOpen, api }: RigProps) {
           .addScaledVector(SCREEN_UP, -downPx / (camera.zoom * SIN_ELEVATION));
         flyTo(target, camera.zoom, 0.3);
       },
-      home: () => flyTo(BAIXA, startZoom(), 1.6),
+      home: () => flyTo(home.target, home.zoom, 1.6),
     };
     return () => {
       api.current = null;
     };
-  }, [api, controls, camera, flyTo]);
+  }, [api, controls, camera, flyTo, home]);
 
   // Dragging and wheel zoom stop at the edge of the map.
   useEffect(() => {
@@ -551,7 +591,7 @@ interface SceneProps {
 }
 
 function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots }: SceneProps) {
-  const { manifest, land, roads, chunks, places, plan, cover } = useCity(stops, projects, onStats);
+  const { manifest, land, roads, chunks, places, plan, cover, street } = useCity(stops, projects, onStats);
   const buildingMaterial = useMemo(() => {
     const material = createBuildingMaterial();
     stops.forEach((s) => {
@@ -577,6 +617,17 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
     buildingMaterial.uniforms.uHover.value = lit >= 0 ? lit + 1 : -1;
     document.body.style.cursor = hovered >= 0 ? "pointer" : "";
   }, [hovered, selectedSpot, buildingMaterial]);
+
+  const overview = useMemo(() => {
+    if (!manifest) return [];
+    return stops
+      .filter((s) => s.onMap)
+      .map((s) => {
+        const p = projects[s.members[0]];
+        const [x, y] = project(manifest, p.coordinates[0], p.coordinates[1]);
+        return new Vector3(x, 0, -y);
+      });
+  }, [manifest, stops, projects]);
 
   const place = places.find((f) => f.index === selectedSpot) ?? null;
   const onMap = stops.some((s) => s.onMap && s.members[0] === selectedSpot);
@@ -616,7 +667,12 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {roads && (
         <mesh geometry={roads.geometry} material={streetMaterial} renderOrder={1} raycast={noRaycast} frustumCulled={false} />
       )}
-      {roads && <Cars roads={roads.lines} />}
+      {roads && <Cars roads={roads.lines} street={street} />}
+      {street && <Calcada squares={street.squares} />}
+      {street && <Crossings data={street.crossings} />}
+      {street && <TrafficLights data={street.lights} />}
+      {street && <Buses lines={street.bus} />}
+      {street && <VascoDaGama bridge={street.bridge} />}
       {plan && <Trams routes={plan.tramRoutes} />}
       {plan && <Tracks file={plan.tracks.file} unitsPerMetre={plan.tracks.unitsPerMetre} routes={plan.trainRoutes} />}
       {plan && <Trains routes={plan.trainRoutes} />}
@@ -679,7 +735,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
         touches={{ ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_PAN }}
       />
       {manifest && !waiting && (
-        <CameraRig place={place} reducedMotion={reducedMotion} view={manifest.view} panelOpen={panelOpen} api={api} />
+        <CameraRig place={place} overview={overview} reducedMotion={reducedMotion} view={manifest.view} panelOpen={panelOpen} api={api} />
       )}
       <Journey stops={stops} places={places} />
       <LabelPositioner spots={spots} places={places} panelOpen={panelOpen} />
@@ -839,7 +895,7 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
     select(index);
   });
 
-  // Keyboard: + and - zoom, Home returns to the Baixa, arrows slide the map
+  // Keyboard: + and - zoom, Home shows all the places, arrows slide the map
   // (or step through the tour while it is running).
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

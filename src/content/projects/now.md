@@ -1,11 +1,11 @@
 ---
 title: "Now"
 label: "Now"
-place: "Ponte 25 de Abril"
+place: "Ponte Vasco da Gama"
 role: "Current Projects/Interests"
 kind: "now"
-# North tower of the bridge.
-coordinates: [-9.1781, 38.6952]
+# On the Vasco da Gama bridge, just off the north shore (the stretch of it inside the map).
+coordinates: [-9.08455, 38.785383]
 order: 9
 stack: []
 ---
