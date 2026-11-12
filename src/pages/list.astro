@@ -1,0 +1,50 @@
+---
+// Everything on the site as plain text, in reading order.
+import { render } from "astro:content";
+import Head from "../components/Head.astro";
+import { CV_PATH, getPlaces, hasCv, pathOf, SITE_NAME } from "../lib/places";
+import "../styles/global.css";
+
+const places = await getPlaces();
+const sections = await Promise.all(
+  places.map(async (entry) => ({ entry, Content: (await render(entry)).Content })),
+);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <Head title="List" description={`Everything on the website of ${SITE_NAME}, as plain text.`} />
+  </head>
+  <body class="list-page">
+    <main>
+      <header>
+        <h1>{SITE_NAME}</h1>
+        <p>TODO: texto do Salvador</p>
+        <p class="list-links">
+          <a href="/">City</a>
+          {hasCv && <a href={CV_PATH}>CV (PDF)</a>}
+        </p>
+      </header>
+
+      {
+        sections.map(({ entry, Content }) => (
+          <section id={entry.id}>
+            <p class="list-place">{entry.data.place}</p>
+            <h2>
+              <a href={pathOf(entry)}>{entry.data.title}</a>
+            </h2>
+            {entry.data.stack.length > 0 && <p class="list-place">{entry.data.stack.join(" · ")}</p>}
+            <Content />
+          </section>
+        ))
+      }
+
+      <footer>
+        <p>
+          Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

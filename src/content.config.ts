@@ -8,11 +8,18 @@ const projects = defineCollection({
   schema: z.object({
     title: z.string(),
     place: z.string(),
-    /** [longitude, latitude] of the building to light up. */
+    /** [longitude, latitude] of the building (or spot) to mark. */
     coordinates: z.tuple([z.number(), z.number()]),
     order: z.number(),
     date: z.coerce.date().optional(),
     stack: z.array(z.string()).default([]),
+    /**
+     * "work" lights up the building at the coordinates and lives at /work/<file name>.
+     * "now" and "contact" are spots without a building, at /now and /contact.
+     */
+    kind: z.enum(["work", "now", "contact"]).default("work"),
+    /** "off" keeps the building dark. */
+    lights: z.enum(["on", "off"]).default("on"),
   }),
 });
 

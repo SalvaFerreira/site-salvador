@@ -7,13 +7,15 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^7.1.8",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "@react-three/postprocessing": "^3.2.2",
+    "@vercel/analytics": "^2.0.1",
     "astro": "^7.4.11",
     "earcut": "^3.2.4",
     "postprocessing": "^6.39.6",
@@ -23,9 +25,11 @@
   },
   "devDependencies": {
     "@types/earcut": "^3.0.0",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.187.0",
+    "puppeteer-core": "^25.17.0",
     "typescript": "^7.0.2"
   }
 }

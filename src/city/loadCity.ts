@@ -27,6 +27,7 @@ export interface Manifest {
   roads: { file: string; unitsPerMetre: number };
   projection: { x: number[]; y: number[] };
   bridge: { kind: string; points: [number, number][] }[];
+  bridgeTowers: { x: number; y: number; width: number; depth: number; height: number }[];
   stats: { buildings: number };
 }
 
@@ -105,6 +106,8 @@ export interface Target {
   index: number;
   x: number;
   y: number;
+  /** Keep this building's lights off. */
+  dark: boolean;
 }
 
 /** The building found for a target, in scene coordinates. */
@@ -116,6 +119,7 @@ export interface Featured {
   radius: number;
   /** 0 when the target is inside the footprint, else metres to the building centre. */
   distance: number;
+  dark: boolean;
 }
 
 export interface BuiltChunk {
@@ -174,6 +178,7 @@ function findFeatured(f: Footprints, chunk: ChunkInfo, targets: Target[]): Map<n
           height: f.heights[b],
           radius,
           distance,
+          dark: t.dark,
         };
       }
       for (let r = 0; r < f.ringCounts[b]; r++) vert += f.vertCounts[ring++];
@@ -190,7 +195,8 @@ function findFeatured(f: Footprints, chunk: ChunkInfo, targets: Target[]): Map<n
  *   wall      x: metres along this wall, y: metres above ground,
  *             z: wall length, w: building height
  *   seed      random 0..1 per building; featured buildings add 1 + their
- *             target index, so the shader can tell them apart
+ *             target index (and 100 more when their lights are off), so
+ *             the shader can tell them apart
  */
 export async function loadChunk(
   chunk: ChunkInfo,
@@ -218,7 +224,7 @@ export async function loadChunk(
   for (let b = 0; b < f.nBuildings; b++) {
     const h = f.heights[b];
     const tag = featured.get(b);
-    const s = seedOf(b * 131 + salt) * 0.999 + (tag ? 1 + tag.index : 0);
+    const s = seedOf(b * 131 + salt) * 0.999 + (tag ? 1 + tag.index + (tag.dark ? 100 : 0) : 0);
     const roofStart = vert;
     const holes: number[] = [];
     let buildingVerts = 0;

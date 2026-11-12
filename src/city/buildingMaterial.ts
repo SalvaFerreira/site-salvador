@@ -50,14 +50,17 @@ float hash(vec3 p) {
 
 void main() {
   vec3 color;
-  // Featured buildings carry 1 + their index in the integer part of the seed.
+  // Featured buildings carry 1 + their index in the integer part of the seed,
+  // plus 100 when their lights are off.
   float tag = floor(vSeed);
+  float dark = step(99.5, tag);
+  tag -= 100.0 * dark;
   float featured = step(0.5, tag);
   float hovered = featured * (1.0 - step(0.5, abs(tag - uHover)));
   float seed = fract(vSeed);
 
   if (vRoof > 0.5) {
-    color = uRoof + uSodium * 0.05 * hovered;
+    color = uRoof * (1.0 - 0.7 * dark) + uSodium * 0.05 * hovered;
   } else {
     float along = vWall.x;
     float up = vWall.y;
@@ -66,6 +69,8 @@ void main() {
 
     // Street lamps light the lowest floors.
     color = uFacade + uSodium * 0.16 * exp(-up / 7.0);
+    // A building with its lights off: a darker block, faintly outlined on hover.
+    color = mix(color, uFacade * 0.35 + uSodium * 0.07 * hovered, dark);
 
     float floors = floor(height / FLOOR_H);
     float columns = floor(len / WINDOW_W);
@@ -76,7 +81,7 @@ void main() {
 
       // Each building has its own share of lit windows.
       float share = mix(0.06, 0.42, hash(vec3(seed * 91.7, 3.1, 7.7)));
-      share = mix(share, 0.92, featured);
+      share = mix(share, 0.92, featured) * (1.0 - dark);
       float wallId = floor(len * 37.0);
       float r = hash(vec3(id.x + wallId, id.y, seed * 517.3));
       float lit = step(r, share) * step(id.y, floors - 0.5);

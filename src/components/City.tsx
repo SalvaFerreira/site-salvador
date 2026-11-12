@@ -12,6 +12,10 @@ import Panel from "./Panel";
 
 export interface Project {
   slug: string;
+  /** Address of this place on the site, e.g. /work/<slug> or /now. */
+  path: string;
+  kind: "work" | "now" | "contact";
+  lights: "on" | "off";
   title: string;
   place: string;
   coordinates: [number, number];
@@ -35,6 +39,25 @@ interface Stats {
 
 type OnStats = (patch: Partial<Stats>) => void;
 
+/** A marked place in the scene: a featured building, or a bare spot (bridge, south bank). */
+interface Place {
+  index: number;
+  x: number;
+  z: number;
+  /** Height of the building; 0 for a bare spot. */
+  height: number;
+  radius: number;
+  /** Height the camera looks at, and height of the label. */
+  lookY: number;
+  labelY: number;
+  /** How far back the camera stays, as a multiple of the usual close-up. */
+  zoom: number;
+}
+
+function buildingPlace(f: Featured): Place {
+  return { index: f.index, x: f.x, z: f.z, height: f.height, radius: f.radius, lookY: f.height / 2, labelY: f.height + 6, zoom: 1 };
+}
+
 declare global {
   interface Window {
     __city?: Stats;
@@ -50,13 +73,15 @@ const FLIGHT_SECONDS = 2.6;
 const BRIDGE_DECK_M = 70;
 
 const noRaycast = () => null;
+/** ?shot: no interface, for taking the preview images. */
+const SHOT = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("shot");
 
 function useCity(projects: Project[], onStats: OnStats) {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [land, setLand] = useState<BufferGeometry | null>(null);
   const [roads, setRoads] = useState<BufferGeometry | null>(null);
   const [chunks, setChunks] = useState<Chunk[]>([]);
-  const [featured, setFeatured] = useState<Featured[]>([]);
+  const [places, setPlaces] = useState<Place[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,10 +94,22 @@ function useCity(projects: Project[], onStats: OnStats) {
       loadLand(m).then((g) => !cancelled && setLand(g));
       loadRoads(m).then((g) => !cancelled && setRoads(g));
 
-      const targets = projects.map((p, index) => {
+      const located = projects.map((p, index) => {
         const [x, y] = project(m, p.coordinates[0], p.coordinates[1]);
-        return { index, x, y };
+        return { index, x, y, dark: p.lights === "off", kind: p.kind };
       });
+      const targets = located.filter((t) => t.kind === "work");
+      // The bridge and the south bank are spots, not buildings.
+      setPlaces(
+        located
+          .filter((t) => t.kind !== "work")
+          .map((t) => {
+            const onBridge = t.kind === "now";
+            const y = onBridge ? BRIDGE_DECK_M : 0;
+            return { index: t.index, x: t.x, z: -t.y, height: 0, radius: 0, lookY: y, labelY: y + 12, zoom: onBridge ? 4 : 2.2 };
+          }),
+      );
+      const best = new Map<number, number>();
 
       // Nearest neighbourhoods first, so the Baixa appears before the suburbs.
       const order = [...m.chunks].sort(
@@ -88,12 +125,20 @@ function useCity(projects: Project[], onStats: OnStats) {
         triangles += built.triangles;
         buildings += c.buildings;
         setChunks((prev) => [...prev, { id: c.id, geometry: built.geometry, position: [c.origin[0], 0, -c.origin[1]] }]);
-        if (built.featured.length) setFeatured((prev) => [...prev, ...built.featured]);
+        for (const f of built.featured) {
+          // A target near a neighbourhood border can match in two chunks: keep the closest.
+          if ((best.get(f.index) ?? Infinity) <= f.distance) continue;
+          best.set(f.index, f.distance);
+          setPlaces((prev) => [...prev.filter((q) => q.index !== f.index), buildingPlace(f)]);
+        }
         if (i === 0) onStats({ firstChunkMs: Math.round(performance.now() - start) });
         // Let the browser draw a frame between neighbourhoods.
         await new Promise((resolve) => requestAnimationFrame(resolve));
       }
       onStats({ buildings, triangles, loadMs: Math.round(performance.now() - start) });
+      for (const t of targets) {
+        if (!best.has(t.index)) console.warn(`No building found near the coordinates of "${projects[t.index].title}"`);
+      }
     })().catch((error) => console.error("City failed to load", error));
 
     return () => {
@@ -101,7 +146,7 @@ function useCity(projects: Project[], onStats: OnStats) {
     };
   }, [projects, onStats]);
 
-  return { manifest, land, roads, chunks, featured };
+  return { manifest, land, roads, chunks, places };
 }
 
 function FrameRate({ onStats }: { onStats: OnStats }) {
@@ -120,18 +165,18 @@ function FrameRate({ onStats }: { onStats: OnStats }) {
 }
 
 /** Camera position and look-at point for a building, leaving room for the panel. */
-function closeUp(place: Featured): { position: Vector3; target: Vector3 } {
-  const target = new Vector3(place.x, place.height * 0.5, place.z);
-  if (window.innerWidth > 800) {
+function closeUp(place: Place): { position: Vector3; target: Vector3 } {
+  const target = new Vector3(place.x, place.lookY, place.z);
+  if (window.innerWidth > 800 && !SHOT) {
     // Look a little to the right of the building so it sits left of the panel.
     const right = new Vector3(CLOSE_UP.z, 0, -CLOSE_UP.x).normalize();
-    target.addScaledVector(right, 75);
+    target.addScaledVector(right, 75 * place.zoom);
   }
-  return { position: target.clone().add(CLOSE_UP), target };
+  return { position: target.clone().addScaledVector(CLOSE_UP, place.zoom), target };
 }
 
 /** Flies the camera to the selected place, or back to the overview. */
-function CameraRig({ place, reducedMotion }: { place: Featured | null; reducedMotion: boolean }) {
+function CameraRig({ place, reducedMotion }: { place: Place | null; reducedMotion: boolean }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const flight = useRef<{ t: number; fromPos: Vector3; fromTarget: Vector3; toPos: Vector3; toTarget: Vector3 } | null>(null);
@@ -186,7 +231,7 @@ interface SceneProps {
 }
 
 function Scene({ projects, selected, onSelect, reducedMotion, onStats }: SceneProps) {
-  const { manifest, land, roads, chunks, featured } = useCity(projects, onStats);
+  const { manifest, land, roads, chunks, places } = useCity(projects, onStats);
   const buildingMaterial = useMemo(createBuildingMaterial, []);
   const roadMaterial = useMemo(createRoadMaterial, []);
   const scene = useThree((s) => s.scene);
@@ -203,7 +248,7 @@ function Scene({ projects, selected, onSelect, reducedMotion, onStats }: ScenePr
     document.body.style.cursor = hovered >= 0 ? "pointer" : "";
   }, [hovered, selected, buildingMaterial]);
 
-  const place = featured.find((f) => f.index === selected) ?? null;
+  const place = places.find((f) => f.index === selected) ?? null;
   // Wait for the building before moving, so a shared link does not start at the overview.
   const waiting = selected >= 0 && !place;
 
@@ -231,19 +276,21 @@ function Scene({ projects, selected, onSelect, reducedMotion, onStats }: ScenePr
 
       {/* The merged city is not raycast (a million triangles); each featured
           building gets an invisible box to click and a label that is a real button. */}
-      {featured.map((f) => (
+      {places.map((f) => (
         <group key={f.index} position={[f.x, 0, f.z]}>
-          <mesh
-            position-y={f.height / 2}
-            onPointerOver={() => setHovered(f.index)}
-            onPointerOut={() => setHovered(-1)}
-            onClick={() => onSelect(f.index)}
-          >
-            <boxGeometry args={[f.radius * 1.6, f.height, f.radius * 1.6]} />
-            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-          </mesh>
+          {f.radius > 0 && (
+            <mesh
+              position-y={f.height / 2}
+              onPointerOver={() => setHovered(f.index)}
+              onPointerOut={() => setHovered(-1)}
+              onClick={() => onSelect(f.index)}
+            >
+              <boxGeometry args={[f.radius * 1.6, f.height, f.radius * 1.6]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+          )}
           {selected !== f.index && (
-            <Html position={[0, f.height + 6, 0]} center zIndexRange={[5, 0]}>
+            <Html position={[0, f.labelY, 0]} center zIndexRange={[5, 0]}>
               <button
                 type="button"
                 className="place-label"
@@ -269,6 +316,20 @@ function Scene({ projects, selected, onSelect, reducedMotion, onStats }: ScenePr
         />
       ))}
 
+      {/* Bridge towers, with the red aviation lights on top */}
+      {manifest?.bridgeTowers.map((t, i) => (
+        <group key={i} position={[t.x, 0, -t.y]}>
+          <mesh position-y={t.height / 2} raycast={noRaycast}>
+            <boxGeometry args={[t.width, t.height, t.depth]} />
+            <meshBasicMaterial color="#0a0908" />
+          </mesh>
+          <mesh position-y={t.height + 3} raycast={noRaycast}>
+            <sphereGeometry args={[3, 12, 8]} />
+            <meshBasicMaterial color={[6, 0.35, 0.2]} toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
+
       <OrbitControls
         makeDefault
         target={BAIXA}
@@ -290,11 +351,21 @@ function Scene({ projects, selected, onSelect, reducedMotion, onStats }: ScenePr
   );
 }
 
-function slugFromPath(): string | undefined {
-  return window.location.pathname.match(/^\/work\/([^/]+)/)?.[1];
+const trim = (path: string) => path.replace(/\/+$/, "");
+
+/** The 3D city needs WebGL 2 on a real GPU, and is too heavy for low-memory phones. */
+function canRunCity(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("fallback")) return false;
+  const gl = document.createElement("canvas").getContext("webgl2", { failIfMajorPerformanceCaveat: true });
+  if (!gl) return false;
+  const memory = (navigator as { deviceMemory?: number }).deviceMemory;
+  const phone = window.matchMedia("(pointer: coarse)").matches;
+  return !(phone && memory !== undefined && memory <= 2);
 }
 
-export default function City({ projects, initialSlug }: { projects: Project[]; initialSlug?: string }) {
+export default function City({ projects, initialPath }: { projects: Project[]; initialPath?: string }) {
+  const live = useMemo(canRunCity, []);
   const showStats = useMemo(() => new URLSearchParams(window.location.search).has("stats"), []);
   const reducedMotion = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
   const [stats, setStats] = useState<Stats>({ buildings: 0, triangles: 0, firstChunkMs: 0, loadMs: 0, fps: 0 });
@@ -306,15 +377,15 @@ export default function City({ projects, initialSlug }: { projects: Project[]; i
     });
   }, []);
 
-  const [selected, setSelected] = useState(() => projects.findIndex((p) => p.slug === initialSlug));
+  const [selected, setSelected] = useState(() => projects.findIndex((p) => p.path === initialPath));
   const current = selected >= 0 ? projects[selected] : null;
 
   // Every project has its own address; moving around the city never reloads the page.
   const select = useCallback(
     (index: number) => {
       setSelected(index);
-      const path = index >= 0 ? `/work/${projects[index].slug}` : "/";
-      if (window.location.pathname.replace(/\/$/, "") !== path.replace(/\/$/, "")) {
+      const path = index >= 0 ? projects[index].path : "/";
+      if (trim(window.location.pathname) !== trim(path)) {
         window.history.pushState(null, "", path + window.location.search);
       }
     },
@@ -323,7 +394,7 @@ export default function City({ projects, initialSlug }: { projects: Project[]; i
   const close = useCallback(() => select(-1), [select]);
 
   useEffect(() => {
-    const onPop = () => setSelected(projects.findIndex((p) => p.slug === slugFromPath()));
+    const onPop = () => setSelected(projects.findIndex((p) => p.path === trim(window.location.pathname)));
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [projects]);
@@ -334,16 +405,23 @@ export default function City({ projects, initialSlug }: { projects: Project[]; i
 
   return (
     <div className="city">
-      <Canvas
-        flat
-        dpr={[1, 1.5]}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
-        camera={{ position: START_CAMERA, fov: 40, near: 20, far: 40000 }}
-      >
-        <Scene projects={projects} selected={selected} onSelect={select} reducedMotion={reducedMotion} onStats={onStats} />
-      </Canvas>
-      {current && <Panel project={current} onClose={close} />}
-      {showStats && (
+      {live ? (
+        <Canvas
+          flat
+          dpr={[1, 1.5]}
+          gl={{ antialias: true, powerPreference: "high-performance" }}
+          camera={{ position: START_CAMERA, fov: 40, near: 20, far: 40000 }}
+        >
+          <Scene projects={projects} selected={selected} onSelect={select} reducedMotion={reducedMotion} onStats={onStats} />
+        </Canvas>
+      ) : (
+        // No 3D: a still of the city. Everything stays reachable through the List.
+        <div className="fallback">
+          <img src="/city.jpg" alt="Lisbon at night, seen from above" />
+        </div>
+      )}
+      {current && !SHOT && <Panel project={current} onClose={close} />}
+      {showStats && live && (
         <p className="stats">
           {`${stats.fps} fps\n${stats.buildings} buildings, ${stats.triangles} triangles\nfirst neighbourhood ${stats.firstChunkMs} ms, all ${stats.loadMs} ms`}
         </p>

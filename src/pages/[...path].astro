@@ -1,0 +1,16 @@
+---
+// One address per place: /work/<file name>, /now, /contact.
+import CityPage from "../components/CityPage.astro";
+import { getPlaces, pathOf } from "../lib/places";
+
+export async function getStaticPaths() {
+  return (await getPlaces()).map((entry) => ({
+    params: { path: pathOf(entry).slice(1) },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+---
+
+<CityPage entry={entry} />

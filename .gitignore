@@ -8,3 +8,6 @@ __pycache__/
 .env
 .vercel/
 .netlify/
+
+# CV with a phone number: only public/cv-salvador-ferreira.pdf (without phone) is published
+/CV_*.pdf

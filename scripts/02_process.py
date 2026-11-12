@@ -130,6 +130,10 @@ def slugify(name):
 
 # ---------------------------------------------------------------- buildings
 
+# Bridge pylons are mapped as buildings; they are exported apart, as towers.
+BRIDGE_TOWERS = []
+
+
 def read_buildings():
     seen, rows = set(), []
     names = [f"buildings_{i}_{j}" for i in range(TILES) for j in range(TILES)] + ["building_relations"]
@@ -141,6 +145,15 @@ def read_buildings():
             seen.add(key)
             tags = el.get("tags", {})
             if tags.get("location") == "underground" or str(tags.get("layer", "")).startswith("-"):
+                continue
+            if "bridge:support" in tags:
+                for poly in polygons_of(element_polygon(el)):
+                    minx, miny, maxx, maxy = poly.bounds
+                    BRIDGE_TOWERS.append({
+                        "x": round(poly.centroid.x, 1), "y": round(poly.centroid.y, 1),
+                        "width": round(maxx - minx, 1), "depth": round(maxy - miny, 1),
+                        "height": round(number(tags.get("height")) or 190.0, 1),
+                    })
                 continue
             for poly in polygons_of(element_polygon(el)):
                 rows.append({
@@ -467,6 +480,7 @@ def main():
         "roads": roads_info,
         "projection": fit_projection(),
         "bridge": read_bridge(area),
+        "bridgeTowers": BRIDGE_TOWERS,
         "stats": {
             **stats,
             "buildings": sum(c["buildings"] for c in chunks),

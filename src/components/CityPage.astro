@@ -1,38 +1,71 @@
 ---
-import { getCollection } from "astro:content";
 import City from "./City";
+import Head from "./Head.astro";
+import { getPlaces, pathOf, SITE_NAME, type Entry } from "../lib/places";
 import "../styles/global.css";
 
 interface Props {
-  slug?: string;
+  entry?: Entry;
 }
 
-const { slug } = Astro.props;
-const entries = (await getCollection("projects")).sort((a, b) => a.data.order - b.data.order);
-const projects = entries.map((entry) => ({
-  slug: entry.id,
-  title: entry.data.title,
-  place: entry.data.place,
-  coordinates: entry.data.coordinates,
-  stack: entry.data.stack,
-  html: entry.rendered?.html ?? "",
+const { entry } = Astro.props;
+const places = await getPlaces();
+const projects = places.map((e) => ({
+  slug: e.id,
+  path: pathOf(e),
+  title: e.data.title,
+  place: e.data.place,
+  coordinates: e.data.coordinates,
+  kind: e.data.kind,
+  lights: e.data.lights,
+  stack: e.data.stack,
+  html: e.rendered?.html ?? "",
 }));
-const current = projects.find((p) => p.slug === slug);
-const title = current ? `${current.title} — Salvador Ferreira` : "Salvador Ferreira";
+const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Personal website of ${SITE_NAME}.`;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>{title}</title>
+    <Head title={entry?.data.title} description={description} image={entry?.id} />
+    <script is:inline>
+      // ?shot hides the interface, for taking the preview images.
+      if (new URLSearchParams(location.search).has("shot")) document.documentElement.classList.add("shot");
+    </script>
   </head>
-  <body>
-    <City client:only="react" projects={projects} initialSlug={slug} />
+  <body class="city-page">
+    <City client:only="react" projects={projects} initialPath={entry ? pathOf(entry) : undefined} />
+
+    <header class="masthead">
+      <a class="name" href="/">{SITE_NAME}</a>
+      <p class="thesis">TODO: texto do Salvador</p>
+    </header>
+
+    <nav class="footline" aria-label="Site">
+      <span>Lisbon <time id="lisbon-time"></time></span>
+      <a href="/list">List</a>
+    </nav>
+
     <p class="attribution">
       Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>
     </p>
+
+    <noscript>
+      <div class="fallback">
+        <img src="/city.jpg" alt="Lisbon at night, seen from above" />
+      </div>
+    </noscript>
+
+    <script is:inline>
+      (function () {
+        var el = document.getElementById("lisbon-time");
+        var format = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Lisbon", hour: "2-digit", minute: "2-digit" });
+        function tick() {
+          el.textContent = format.format(new Date());
+        }
+        tick();
+        setInterval(tick, 15000);
+      })();
+    </script>
   </body>
 </html>
