@@ -24,7 +24,6 @@ export function createStreetMaterial(): ShaderMaterial {
     fragmentShader: /* glsl */ `
 uniform vec3 uAsphalt;
 uniform vec3 uPaint;
-uniform float uPlan;
 varying vec3 vRoad;
 
 void main() {
@@ -32,7 +31,6 @@ void main() {
   float dashes = step(0.5, fract(vRoad.x / 14.0)) * (1.0 - smoothstep(0.03, 0.07, abs(vRoad.y)));
   float fine = smoothstep(0.5, 0.15, fwidth(vRoad.x) / 14.0);
   color = mix(color, uPaint, dashes * fine * step(vRoad.z, 0.5) * 0.8);
-  color = mix(color, vec3(0.86), uPlan * 0.5);
   gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>
 }
@@ -94,7 +92,6 @@ export function createTrackMaterial(): ShaderMaterial {
   return new ShaderMaterial({
     vertexShader: ribbonVertex,
     fragmentShader: /* glsl */ `
-uniform float uPlan;
 varying vec3 vRoad;
 
 void main() {
@@ -110,7 +107,6 @@ void main() {
   color = mix(color, vec3(0.2, 0.2, 0.22), rail * 0.9);
   // Soft edge, so the bed sits in the ground instead of looking like a strip laid on it.
   float alpha = 1.0 - smoothstep(0.82, 1.0, across);
-  color = mix(color, vec3(0.86), uPlan * 0.5);
   gl_FragColor = vec4(color, alpha);
   #include <colorspace_fragment>
 }
@@ -161,7 +157,6 @@ export function createRunwayMaterial(): ShaderMaterial {
   return new ShaderMaterial({
     vertexShader: ribbonVertex,
     fragmentShader: /* glsl */ `
-uniform float uPlan;
 varying vec3 vRoad;
 
 void main() {
@@ -172,34 +167,12 @@ void main() {
   float edges = smoothstep(0.86, 0.9, abs(vRoad.y)) * (1.0 - smoothstep(0.93, 0.97, abs(vRoad.y)));
   vec3 paint = mix(vec3(0.93, 0.76, 0.2), vec3(0.95), runway);
   color = mix(color, paint, max(centre * mix(1.0, dashes, runway), edges * runway) * 0.9);
-  color = mix(color, vec3(0.86), uPlan * 0.5);
   gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>
 }
 `,
     uniforms: { ...shared },
     depthWrite: false,
-  });
-}
-
-/** Lines of the Plan layer: 0 rail, 1 underground rail, 2 metro, 3 tram. */
-export function createPlanLineMaterial(): ShaderMaterial {
-  return new ShaderMaterial({
-    vertexShader: ribbonVertex,
-    fragmentShader: /* glsl */ `
-varying vec3 vRoad;
-
-void main() {
-  // Underground lines are dashed.
-  float underground = step(0.5, vRoad.z) * step(vRoad.z, 2.5);
-  if (underground > 0.5 && fract(vRoad.x / 60.0) < 0.42) discard;
-  vec3 color = vRoad.z > 2.5 ? vec3(0.86, 0.5, 0.02) : vRoad.z > 1.5 ? vec3(0.1, 0.22, 0.55) : vec3(0.26, 0.28, 0.31);
-  gl_FragColor = vec4(color, 1.0);
-  #include <colorspace_fragment>
-}
-`,
-    depthWrite: false,
-    depthTest: false,
   });
 }
 
@@ -218,7 +191,6 @@ void main() {
     fragmentShader: /* glsl */ `
 uniform vec3 uWater;
 uniform float uTime;
-uniform float uPlan;
 varying vec3 vWorld;
 
 float hash(vec2 p) {
@@ -239,7 +211,6 @@ void main() {
   vec2 p = vWorld.xz * vec2(0.012, 0.04);
   float ripples = noise(p + vec2(uTime * 0.06, uTime * 0.02)) * noise(p * 2.1 - vec2(uTime * 0.04, 0.0));
   vec3 color = uWater * (0.96 + 0.16 * smoothstep(0.3, 0.75, ripples));
-  color = mix(color, vec3(0.8, 0.86, 0.9), uPlan * 0.5);
   gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>
 }

@@ -6,6 +6,8 @@ category: "personal"
 place: "Alvalade"
 coordinates: [-9.1440, 38.7530]
 order: 8
+# Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
+images: []
 # From the languages and README of the app repository.
 stack: ["Flutter (Dart)", "PostgreSQL", "Supabase", "JavaScript"]
 links:
@@ -21,4 +23,16 @@ links:
 
 Learn investing through gamification with LearnVestor, a free app with no account needed. Track your virtual portfolio, complete lessons, and build financial literacy.
 
-<!-- Text above is the description from the LearnVestor website. Case study: TODO: texto do Salvador -->
+<!-- The paragraph above is the description from the LearnVestor website. -->
+
+### Problem
+
+TODO: texto do Salvador
+
+### What I did
+
+TODO: texto do Salvador
+
+### Result
+
+TODO: texto do Salvador

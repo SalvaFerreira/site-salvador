@@ -92,7 +92,15 @@ export default function Panel({ stop, projects, active, onClose, tour }: Props) 
           )}
           {project.stack.length > 0 && <p className="panel-stack">{project.stack.join(" · ")}</p>}
           {/* Rendered from the project's Markdown file at build time. */}
+          {/* Case studies are written under ### Problem, ### What I did and ### Result. */}
           <div className="panel-body" dangerouslySetInnerHTML={{ __html: project.html }} />
+          {project.images.length > 0 && (
+            <div className="panel-images">
+              {project.images.map((image) => (
+                <img key={image.src} src={image.src} alt={image.alt} loading="lazy" />
+              ))}
+            </div>
+          )}
           {project.links.length > 0 && (
             <p className="panel-links">
               {project.links.map((link) => (

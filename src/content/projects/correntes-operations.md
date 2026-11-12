@@ -11,6 +11,10 @@ period: "Jun 2025 – Present"
 # this is one of the buildings on it. Replace with the exact [longitude, latitude] of number 11.
 coordinates: [-9.129815, 38.744369]
 order: 2
+# Start: orders the journey line and the Tour.
+date: "2025-06"
+# Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
+images: []
 stack: []
 links:
   - label: "correntes.pt"
@@ -21,4 +25,14 @@ links:
 - Automating the shared service-quality tracking spreadsheet used by the care team, so quality data is captured consistently instead of by hand.
 - Own day-to-day finance operations: 1,000+ invoices, receipts and payment confirmations recorded, verified and reconciled across accounts payable and receivable.
 
-<!-- Text above is from the CV. Case study: TODO: texto do Salvador -->
+### Problem
+
+TODO: texto do Salvador
+
+### What I did
+
+TODO: texto do Salvador
+
+### Result
+
+TODO: texto do Salvador

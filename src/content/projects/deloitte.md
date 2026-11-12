@@ -8,6 +8,8 @@ period: "Sep 2026 – Present"
 # Restelo Business Center, Rua Luís Castanho de Almeida 2.
 coordinates: [-9.208558, 38.706167]
 order: 3
+# Start: orders the journey line and the Tour.
+date: "2026-09"
 lights: "off"
 stack: []
 links:

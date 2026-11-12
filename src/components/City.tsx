@@ -1,14 +1,14 @@
-import { OrbitControls } from "@react-three/drei";
+import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Color, MOUSE, TOUCH, Vector3, type BufferGeometry, type OrthographicCamera } from "three";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+import type { Line2, OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ACCENT_SLOTS, createBuildingMaterial } from "../city/buildingMaterial";
 import { BACKDROP, shared } from "../city/environment";
 import { createRiverMaterial, createShadowMaterial, createStreetMaterial, STREET_HALF_WIDTH } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type Featured, type Manifest } from "../city/loadCity";
-import { Bridge, BRIDGE_DECK_M, loadCover, loadPlan, Parks, PlanLayer, type CoverData, type PlanData } from "./Extras";
+import { Bridge, BRIDGE_DECK_M, loadCover, loadPlan, Parks, type CoverData, type PlanData } from "./Extras";
 import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
 import Panel from "./Panel";
 
@@ -30,6 +30,10 @@ export interface Project {
   role?: string;
   period?: string;
   coordinates: [number, number];
+  /** When it started (ISO), if known. */
+  date?: string;
+  order: number;
+  images: { src: string; alt: string }[];
   stack: string[];
   links: { label: string; url: string }[];
   html: string;
@@ -38,7 +42,12 @@ export interface Project {
 /** One label on the map and one panel: a place, or several that share a group. */
 export interface Stop {
   key: string;
+  /** Name on the map label: the company, school or project. */
   label: string;
+  /** What it is for Salvador, after the name on the label: role and year. */
+  line: string;
+  /** Start of the earliest member, if known: orders the journey and the Tour. */
+  date?: string;
   category?: Category;
   off: boolean;
   /** Indices into the projects list, in reading order. */
@@ -403,12 +412,16 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
   // measured now and then instead of on every frame.
   const sizes = useMemo(() => new WeakMap<HTMLElement, { w: number; h: number }>(), []);
   const frame = useRef(0);
+  const topEdge = useRef(0);
 
   useFrame(() => {
     const remeasure = frame.current++ % 90 === 0;
     const left = 12;
     const right = size.width - 12 - (panelOpen && size.width > 800 ? Math.min(PANEL_WIDTH_PX, size.width) : 0);
-    const top = 66;
+    if (remeasure || topEdge.current === 0) {
+      topEdge.current = (document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 54) + 12;
+    }
+    const top = topEdge.current;
     const bottom = size.height - 104; // clear of the controls and the colour key
     const boxes: { x: number; y: number; w: number; h: number }[] = [];
 
@@ -460,6 +473,64 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
   return null;
 }
 
+/**
+ * A thin dashed line from place to place in the order they happened, arcing
+ * over the roofs. Drawn over everything, so it can be followed across the city.
+ */
+function Journey({ stops, places }: { stops: Stop[]; places: Place[] }) {
+  const points = useMemo(() => {
+    const along = stops
+      .filter((s) => s.date && s.onMap)
+      .map((s) => places.find((p) => p.index === s.members[0]))
+      .filter((p): p is Place => !!p);
+    if (along.length < 2) return null;
+    const out: Vector3[] = [];
+    for (let i = 0; i < along.length - 1; i++) {
+      const a = new Vector3(along[i].x, along[i].height, along[i].z);
+      const b = new Vector3(along[i + 1].x, along[i + 1].height, along[i + 1].z);
+      const lift = Math.min(260, a.distanceTo(b) * 0.18);
+      const mid = a.clone().lerp(b, 0.5);
+      mid.y = Math.max(a.y, b.y) + lift;
+      for (let k = i === 0 ? 0 : 1; k <= 32; k++) {
+        const t = k / 32;
+        // Quadratic curve through the two places, highest halfway.
+        out.push(
+          new Vector3()
+            .addScaledVector(a, (1 - t) ** 2)
+            .addScaledVector(mid, 2 * (1 - t) * t)
+            .addScaledVector(b, t * t),
+        );
+      }
+    }
+    return out;
+  }, [stops, places]);
+
+  // Dashes keep the same length on screen at every zoom (zoom is pixels per metre).
+  const line = useRef<Line2 | null>(null);
+  useFrame(({ camera }) => {
+    if (line.current) line.current.material.dashScale = (camera as OrthographicCamera).zoom;
+  });
+
+  if (!points) return null;
+  return (
+    <Line
+      ref={line}
+      points={points}
+      color="#1f2126"
+      lineWidth={2.6}
+      dashed
+      dashSize={9}
+      gapSize={6}
+      transparent
+      opacity={0.8}
+      depthTest={false}
+      depthWrite={false}
+      renderOrder={10}
+      raycast={noRaycast}
+    />
+  );
+}
+
 interface SceneProps {
   projects: Project[];
   stops: Stop[];
@@ -469,13 +540,12 @@ interface SceneProps {
   onHover: (index: number) => void;
   reducedMotion: boolean;
   onStats: OnStats;
-  planOn: boolean;
   panelOpen: boolean;
   api: RefObject<CameraApi | null>;
   spots: RefObject<LabelSpot[]>;
 }
 
-function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, planOn, panelOpen, api, spots }: SceneProps) {
+function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots }: SceneProps) {
   const { manifest, land, roads, chunks, places, plan, cover } = useCity(stops, projects, onStats);
   const buildingMaterial = useMemo(() => {
     const material = createBuildingMaterial();
@@ -489,10 +559,6 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
   const streetMaterial = useMemo(createStreetMaterial, []);
   const riverMaterial = useMemo(createRiverMaterial, []);
   const shadowMaterial = useMemo(createShadowMaterial, []);
-
-  useEffect(() => {
-    shared.uPlan.value = planOn ? 1 : 0;
-  }, [planOn]);
 
   // The stop the selected project belongs to, by the index of its first member.
   const stopIndex = (index: number) => stops.find((s) => s.members.includes(index))?.members[0] ?? -1;
@@ -544,7 +610,6 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
         <mesh geometry={roads.geometry} material={streetMaterial} renderOrder={1} raycast={noRaycast} frustumCulled={false} />
       )}
       {roads && <Cars roads={roads.lines} />}
-      {plan && <PlanLayer plan={plan} visible={planOn} />}
       {plan && <Trams routes={plan.tramRoutes} />}
       {plan && <Tracks file={plan.tracks.file} unitsPerMetre={plan.tracks.unitsPerMetre} routes={plan.trainRoutes} />}
       {plan && <Trains routes={plan.trainRoutes} />}
@@ -600,6 +665,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {manifest && !waiting && (
         <CameraRig place={place} reducedMotion={reducedMotion} view={manifest.view} panelOpen={panelOpen} api={api} />
       )}
+      <Journey stops={stops} places={places} />
       <LabelPositioner spots={spots} places={places} panelOpen={panelOpen} />
 
       <Clock onStats={onStats} />
@@ -620,17 +686,33 @@ function canRunCity(): boolean {
   return !(phone && memory !== undefined && memory <= 2);
 }
 
-/** Groups the projects into stops, in reading order. */
+export const TODO = "TODO: texto do Salvador";
+
+/** "AI & Data Analyst · 2026", from the role and the start date in the content files. */
+function labelLine(p: Project): string {
+  if (!p.role) return TODO;
+  const role = p.role.split(" · ")[0];
+  return p.date ? `${role} · ${new Date(p.date).getUTCFullYear()}` : role;
+}
+
+/**
+ * Groups the projects into stops, in the order they happened: by start date,
+ * then reading order. Places without a date come after the dated ones.
+ */
 function toStops(projects: Project[]): Stop[] {
   const stops: Stop[] = [];
   projects.forEach((p, index) => {
     const key = p.group ?? p.slug;
     const existing = stops.find((s) => s.key === key);
-    if (existing) existing.members.push(index);
-    else {
+    if (existing) {
+      existing.members.push(index);
+      if (p.date && (!existing.date || p.date < existing.date)) existing.date = p.date;
+    } else {
       stops.push({
         key,
         label: p.group ?? p.label,
+        line: labelLine(p),
+        date: p.date,
         category: p.category,
         off: p.lights === "off",
         members: [index],
@@ -638,7 +720,12 @@ function toStops(projects: Project[]): Stop[] {
       });
     }
   });
-  return stops;
+  const first = (s: Stop) => Math.min(...s.members.map((m) => projects[m].order));
+  return stops.sort((a, b) => {
+    if (a.date && b.date && a.date !== b.date) return a.date < b.date ? -1 : 1;
+    if (!!a.date !== !!b.date) return a.date ? -1 : 1;
+    return first(a) - first(b);
+  });
 }
 
 /** Wires a button that lives in the page's own HTML (it only works once the city is running). */
@@ -658,7 +745,6 @@ function usePageButton(id: string, enabled: boolean, onPress: (event: Event) => 
 export default function City({ projects, initialPath }: { projects: Project[]; initialPath?: string }) {
   const live = useMemo(canRunCity, []);
   const stops = useMemo(() => toStops(projects), [projects]);
-  const [planOn, setPlanOn] = useState(false);
   const [touring, setTouring] = useState(false);
   const [hovered, setHovered] = useState(-1);
   const showStats = useMemo(() => new URLSearchParams(window.location.search).has("stats"), []);
@@ -697,7 +783,7 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
     select(-1);
   }, [select]);
 
-  // Tour: the stops one after the other, in the order given by the content files.
+  // Tour: the stops one after the other, in the order they happened (see toStops).
   const goToStop = useCallback(
     (at: number) => {
       if (at >= 0 && at < stops.length) select(stops[at].members[0]);
@@ -719,11 +805,16 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
     document.title = current ? `${current.title} — Salvador Ferreira` : "Salvador Ferreira";
   }, [current]);
 
-  usePageButton("plan-toggle", live, () => setPlanOn((on) => !on));
   usePageButton("zoom-in", live, () => api.current?.zoomBy(1.6));
   usePageButton("zoom-out", live, () => api.current?.zoomBy(1 / 1.6));
   usePageButton("go-home", live, () => api.current?.home());
   usePageButton("tour-start", true, startTour);
+  usePageButton("intro-tour", true, startTour);
+
+  // The welcome card (CityPage.astro) gives way to any place that opens.
+  useEffect(() => {
+    if (selected >= 0) document.getElementById("intro")?.setAttribute("hidden", "");
+  }, [selected]);
   // Contact has its own page; inside the city it opens as a panel instead.
   usePageButton("contact-link", true, (event) => {
     const index = projects.findIndex((p) => p.kind === "contact");
@@ -731,11 +822,6 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
     event.preventDefault();
     select(index);
   });
-
-  useEffect(() => {
-    document.getElementById("plan-toggle")?.setAttribute("aria-pressed", String(planOn));
-    document.documentElement.classList.toggle("plan-on", planOn);
-  }, [planOn]);
 
   // Keyboard: + and - zoom, Home returns to the Baixa, arrows slide the map
   // (or step through the tour while it is running).
@@ -802,7 +888,6 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
             onHover={setHovered}
             reducedMotion={reducedMotion}
             onStats={onStats}
-            planOn={planOn}
             panelOpen={stop !== null}
             api={api}
             spots={spots}
@@ -834,7 +919,8 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
               onBlur={() => setHovered(-1)}
             >
               <span className="place-dot" aria-hidden="true" />
-              {s.label}
+              <span className="place-name">{s.label}</span>
+              <span className="place-what">{s.line}</span>
               <span className="place-arrow" aria-hidden="true" />
             </button>
           ))}

@@ -1,7 +1,7 @@
 ---
 import City from "./City";
 import Head from "./Head.astro";
-import { getPlaces, pathOf, SITE_NAME, type Entry } from "../lib/places";
+import { getAbout, getPlaces, pathOf, SITE_NAME, type Entry } from "../lib/places";
 import "../styles/global.css";
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
 
 const { entry } = Astro.props;
 const places = await getPlaces();
+const about = await getAbout();
 const projects = places.map((e) => ({
   slug: e.id,
   path: pathOf(e),
@@ -23,6 +24,9 @@ const projects = places.map((e) => ({
   coordinates: e.data.coordinates,
   kind: e.data.kind,
   lights: e.data.lights,
+  date: e.data.date?.toISOString(),
+  order: e.data.order,
+  images: e.data.images,
   stack: e.data.stack,
   links: e.data.links,
   html: e.rendered?.html ?? "",
@@ -44,7 +48,7 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Per
 
     <header class="topbar">
       <a class="name" href="/">{SITE_NAME}</a>
-      <p class="thesis">TODO: texto do Salvador</p>
+      <p class="thesis">{about.masthead}</p>
       <nav aria-label="Site">
         <a href="/list">List</a>
         <button type="button" id="tour-start" hidden>Tour</button>
@@ -61,7 +65,6 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Per
             <path d="M2 8.2 8 2.8l6 5.4M4 7.2V13h3v-3.2h2V13h3V7.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></path>
           </svg>
         </button>
-        <button type="button" id="plan-toggle" aria-pressed="false" hidden>Plan</button>
       </div>
       <span class="clock">Lisbon <time id="lisbon-time"></time></span>
     </div>
@@ -72,17 +75,51 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Per
       <li><span class="place-dot" style="--dot: #55a868"></span>Personal projects</li>
     </ul>
 
-    <p class="legend">
-      <span class="key key-rail"></span>Railway
-      <span class="key key-metro"></span>Metro
-      <span class="key key-tram"></span>Tram
-    </p>
 
     <p class="attribution">
       Green spaces, trees and railways: Câmara Municipal de Lisboa · Map data © <a
         href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a
       >
     </p>
+
+    <!-- Welcome card: on the first visit of a session to the home page only, never on a project's own address. -->
+    <section class="intro" id="intro" role="dialog" aria-labelledby="intro-title" tabindex="-1" data-home={entry ? "no" : "yes"} hidden>
+      <button type="button" class="intro-close" id="intro-close">Close</button>
+      <h2 id="intro-title">{SITE_NAME}</h2>
+      <div class="intro-text" set:html={about.html} />
+      <p class="intro-actions">
+        <button type="button" id="intro-tour">Start the tour</button>
+        <a href="/list">List</a>
+      </p>
+    </section>
+    <script is:inline>
+      (function () {
+        var card = document.getElementById("intro");
+        var key = "intro-seen";
+        var seen = false;
+        try {
+          seen = sessionStorage.getItem(key) === "1";
+        } catch (e) {}
+        if (seen || card.dataset.home !== "yes" || document.documentElement.classList.contains("shot")) return;
+        try {
+          sessionStorage.setItem(key, "1");
+        } catch (e) {}
+        card.hidden = false;
+        card.focus();
+        function close() {
+          card.hidden = true;
+          document.removeEventListener("keydown", onKey);
+        }
+        function onKey(event) {
+          if (event.key === "Escape") close();
+        }
+        document.addEventListener("keydown", onKey);
+        document.getElementById("intro-close").addEventListener("click", close);
+        // The city starts the tour itself (City.tsx); the card only has to go.
+        document.getElementById("intro-tour").addEventListener("click", close);
+        // Opening a place also puts the card away (City.tsx hides it).
+      })();
+    </script>
 
     <noscript>
       <div class="fallback">

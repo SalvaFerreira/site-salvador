@@ -1,5 +1,5 @@
 // The parts of the scene that are not buildings: parks and trees, cars,
-// the bridge, the tram and the Plan layer.
+// and the bridge.
 import { Line } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -17,8 +17,8 @@ import {
   type OrthographicCamera,
 } from "three";
 import { shared } from "../city/environment";
-import { createPlanLineMaterial, createShadowMaterial, createTrafficMaterial } from "../city/groundMaterials";
-import { buildRibbons, loadLines, type Polyline } from "../city/lines";
+import { createShadowMaterial, createTrafficMaterial } from "../city/groundMaterials";
+import { buildRibbons } from "../city/lines";
 import { loadShapes, SHADOW_PER_M, type Manifest } from "../city/loadCity";
 
 const noRaycast = () => null;
@@ -37,7 +37,6 @@ export interface PlanData {
   attribution: string;
   green: { file: string; unitsPerMetre: number };
   trees: { file: string; unitsPerMetre: number };
-  rail: { file: string; unitsPerMetre: number };
   /** Routes of what moves in the scene, as lists of [x, y] points in map metres. */
   tramRoutes: number[][][];
   /** Railway tracks above ground, drawn in the city. */
@@ -374,23 +373,4 @@ export function Bridge({ manifest }: { manifest: Manifest }) {
       ))}
     </>
   );
-}
-
-// ---------------------------------------------------------------- plan
-
-/** Infrastructure of the Plan layer: railway, metro and tram lines drawn over the city. */
-export function PlanLayer({ plan, visible }: { plan: PlanData; visible: boolean }) {
-  const [rail, setRail] = useState<BufferGeometry | null>(null);
-  const material = useMemo(createPlanLineMaterial, []);
-  const wanted = useRef(false);
-
-  useEffect(() => {
-    // Downloaded the first time the layer is switched on.
-    if (!visible || wanted.current) return;
-    wanted.current = true;
-    loadLines(plan.rail.file, plan.rail.unitsPerMetre).then((lines) => setRail(buildRibbons(lines, [9, 9, 8, 5], 1.2)));
-  }, [visible, plan]);
-
-  if (!rail) return null;
-  return <mesh geometry={rail} material={material} visible={visible} renderOrder={5} raycast={noRaycast} frustumCulled={false} />;
 }

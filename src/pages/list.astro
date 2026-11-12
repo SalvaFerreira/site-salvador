@@ -2,10 +2,11 @@
 // Everything on the site as plain text, in reading order.
 import { render } from "astro:content";
 import Head from "../components/Head.astro";
-import { CV_PATH, getPlaces, hasCv, pathOf, SITE_NAME } from "../lib/places";
+import { CV_PATH, getAbout, getPlaces, hasCv, pathOf, SITE_NAME } from "../lib/places";
 import "../styles/global.css";
 
 const places = await getPlaces();
+const about = await getAbout();
 const sections = await Promise.all(
   places.map(async (entry) => ({ entry, Content: (await render(entry)).Content })),
 );
@@ -20,7 +21,7 @@ const sections = await Promise.all(
     <main>
       <header>
         <h1>{SITE_NAME}</h1>
-        <p>TODO: texto do Salvador</p>
+        <div class="list-about" set:html={about.html} />
         <p class="list-links">
           <a href="/">City</a>
           {hasCv && <a href={CV_PATH}>CV (PDF)</a>}
@@ -39,6 +40,9 @@ const sections = await Promise.all(
             )}
             {entry.data.stack.length > 0 && <p class="list-place">{entry.data.stack.join(" · ")}</p>}
             <Content />
+            {entry.data.images.map((image) => (
+              <img class="list-image" src={image.src} alt={image.alt} loading="lazy" />
+            ))}
             {entry.data.links.length > 0 && (
               <p class="list-links">
                 {entry.data.links.map((link) => (

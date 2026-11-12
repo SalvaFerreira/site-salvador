@@ -11,6 +11,10 @@ period: "Jun 2025 – Present"
 # this is one of the buildings on it. Replace with the exact [longitude, latitude] of number 11.
 coordinates: [-9.129815, 38.744369]
 order: 1
+# Start: orders the journey line and the Tour.
+date: "2025-06"
+# Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
+images: []
 stack: []
 links:
   - label: "correntes.pt"
@@ -19,4 +23,14 @@ links:
 
 Developing an LLM-powered agent that reads unstructured caregiver-replacement orders (PDF), updates the internal care-management system and reconciles caregiver payments automatically, replacing an end-to-end manual process.
 
-<!-- Text above is from the CV. Case study: TODO: texto do Salvador -->
+### Problem
+
+TODO: texto do Salvador
+
+### What I did
+
+TODO: texto do Salvador
+
+### Result
+
+TODO: texto do Salvador

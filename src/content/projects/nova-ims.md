@@ -8,6 +8,8 @@ period: "2026 – 2028 (expected)"
 # NOVA IMS, Campus de Campolide.
 coordinates: [-9.1602, 38.7325]
 order: 6
+# Start: orders the journey line and the Tour.
+date: "2026"
 stack: []
 links:
   - label: "novaims.unl.pt"

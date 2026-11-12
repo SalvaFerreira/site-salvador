@@ -38,7 +38,6 @@ uniform vec3 uGlass;
 uniform vec3 uAccents[16];
 uniform vec3 uOff;
 uniform float uHover;
-uniform float uPlan;
 
 varying vec4 vWall;
 varying float vSeed;
@@ -141,7 +140,6 @@ void main() {
   color *= 1.0 + 0.12 * hovered;
   // The Plan layer washes the city out so the drawing on top can be read.
   float grey = dot(color, vec3(0.3, 0.6, 0.1));
-  color = mix(color, mix(vec3(grey), vec3(0.93), 0.45), uPlan * 0.75 * (1.0 - featured));
 
   gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>

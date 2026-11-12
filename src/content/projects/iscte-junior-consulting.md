@@ -8,6 +8,10 @@ period: "Oct 2023 – Jan 2025"
 # Iscte campus, Avenida das Forças Armadas (approximate building).
 coordinates: [-9.15275, 38.74790]
 order: 4
+# Start: orders the journey line and the Tour.
+date: "2023-10"
+# Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
+images: []
 stack: []
 links:
   - label: "isctejuniorconsulting.com"
@@ -16,3 +20,15 @@ links:
 
 - Built 50+ databases, dashboards and reports (Power BI, Excel) for client projects and internal teams, turning raw data into clear recommendations for decision-makers.
 - Contributed to the organisation’s ISO 9001 certification (quality management and process standardisation) alongside the analytics department.
+
+### Problem
+
+TODO: texto do Salvador
+
+### What I did
+
+TODO: texto do Salvador
+
+### Result
+
+TODO: texto do Salvador
