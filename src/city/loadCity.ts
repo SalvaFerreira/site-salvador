@@ -94,6 +94,49 @@ async function loadFootprints(file: string, unitsPerMetre: number): Promise<Foot
   return { nBuildings, vertCounts, coords, heights, ringCounts };
 }
 
+/**
+ * The top of a pitched roof: the footprint moved inwards by `inset` metres.
+ * Returns null when the shape is too narrow or too crooked for that to work,
+ * in which case the building keeps a flat roof.
+ */
+function insetRing(coords: Float32Array, start: number, n: number, inset: number): Float32Array | null {
+  const out = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) {
+    const p = start + ((i + n - 1) % n);
+    const c = start + i;
+    const q = start + ((i + 1) % n);
+    // Inward normals of the two edges that meet here (the ring runs counter-clockwise).
+    let ax = coords[c * 2] - coords[p * 2];
+    let ay = coords[c * 2 + 1] - coords[p * 2 + 1];
+    let bx = coords[q * 2] - coords[c * 2];
+    let by = coords[q * 2 + 1] - coords[c * 2 + 1];
+    const al = Math.hypot(ax, ay) || 1;
+    const bl = Math.hypot(bx, by) || 1;
+    ax /= al;
+    ay /= al;
+    bx /= bl;
+    by /= bl;
+    const k = 1 + ax * bx + ay * by; // 2 on a straight wall, towards 0 on a hairpin corner
+    if (k < 0.35) return null;
+    out[i * 2] = coords[c * 2] + ((-ay - by) / k) * inset;
+    out[i * 2 + 1] = coords[c * 2 + 1] + ((ax + bx) / k) * inset;
+  }
+  // Every edge must still run the same way, and enough of the roof must be left on top.
+  let area = 0;
+  let original = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const ex = out[j * 2] - out[i * 2];
+    const ey = out[j * 2 + 1] - out[i * 2 + 1];
+    const ox = coords[(start + j) * 2] - coords[(start + i) * 2];
+    const oy = coords[(start + j) * 2 + 1] - coords[(start + i) * 2 + 1];
+    if (ex * ox + ey * oy <= 0) return null;
+    area += out[i * 2] * out[j * 2 + 1] - out[j * 2] * out[i * 2 + 1];
+    original += coords[(start + i) * 2] * coords[(start + j) * 2 + 1] - coords[(start + j) * 2] * coords[(start + i) * 2 + 1];
+  }
+  return area > 0.2 * original ? out : null;
+}
+
 /** Cheap deterministic 0..1 value per building. */
 function seedOf(n: number): number {
   let h = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b);
@@ -203,7 +246,8 @@ function findFeatured(f: Footprints, chunk: ChunkInfo, targets: Target[]): Map<n
  *   position  relative to the chunk origin
  *   normal    roofs point up; the shader uses that to skip windows
  *   wall      x: metres along this wall, y: metres above ground,
- *             z: wall length, w: building height
+ *             z: wall length, w: building height.
+ *             On roofs, x is 1 for a flat grey roof and 0 for tiles.
  *   seed      random 0..1 per building; featured buildings add 1 + their
  *             target index (and 100 more when their lights are off), so
  *             the shader can tell them apart
@@ -219,17 +263,19 @@ export async function loadChunk(
   const nVerts = f.coords.length / 2;
   const nRings = f.vertCounts.length;
 
-  const maxVerts = nVerts * 5; // 4 per wall + 1 per roof vertex
+  // Per footprint vertex: 4 for the wall, 4 for the roof slope above it, 1 for the roof top;
+  // plus up to 20 for a chimney on each building.
+  const maxVerts = nVerts * 9 + f.nBuildings * 20;
   const position = new Float32Array(maxVerts * 3);
   const normal = new Int8Array(maxVerts * 3);
   const wall = new Float32Array(maxVerts * 4);
   const seed = new Float32Array(maxVerts);
-  const index = new Uint32Array(nVerts * 6 + (nVerts + nRings * 2) * 3);
+  const index = new Uint32Array(nVerts * 12 + (nVerts + nRings * 2) * 3 + f.nBuildings * 30);
 
   // The shadow of a block on flat ground is its footprint slid along the
   // ground, plus the strip each wall sweeps on the way.
-  const shadowPos = new Float32Array(maxVerts * 3);
-  const shadowIndex = new Uint32Array(index.length);
+  const shadowPos = new Float32Array(nVerts * 5 * 3);
+  const shadowIndex = new Uint32Array(nVerts * 6 + (nVerts + nRings * 2) * 3);
   let sp = 0;
   let six = 0;
 
@@ -308,15 +354,70 @@ export async function loadChunk(
       buildingVerts += n;
     }
 
-    // Roof.
+    // Roof. Most buildings get tiles on a pitched roof: the eaves stay at the
+    // top of the walls and the roof rises to a smaller flat top. Tall and
+    // modern buildings, and shapes that cannot be pitched, keep a flat roof.
     const flat = f.coords.subarray(roofStart * 2, (roofStart + buildingVerts) * 2);
+    const pick = seedOf(b * 977 + salt);
+    const modern = h >= 34 || pick < 0.14;
+    let footprintArea = 0;
+    for (let i = 0; i < buildingVerts; i++) {
+      const j = (i + 1) % buildingVerts;
+      footprintArea += flat[i * 2] * flat[j * 2 + 1] - flat[j * 2] * flat[i * 2 + 1];
+    }
+    footprintArea = Math.abs(footprintArea) / 2;
+    const inset = Math.min(3, Math.max(1.2, 0.2 * Math.sqrt(footprintArea)));
+    const top =
+      modern || holes.length || h < 4 || footprintArea < 30
+        ? null
+        : (insetRing(f.coords, roofStart, buildingVerts, inset) ?? insetRing(f.coords, roofStart, buildingVerts, inset / 2));
+    const rise = top ? inset * 0.6 : 0;
+    const flatFlag = modern ? 1 : 0;
+
+    if (top) {
+      // One sloping face above each wall.
+      const slope = Math.hypot(inset, rise);
+      for (let i = 0; i < buildingVerts; i++) {
+        const j = (i + 1) % buildingVerts;
+        const dx = flat[j * 2] - flat[i * 2];
+        const dy = flat[j * 2 + 1] - flat[i * 2 + 1];
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = Math.round(((dy / len) * rise * 127) / slope);
+        const ny = Math.round((inset * 127) / slope);
+        const nz = Math.round(((dx / len) * rise * 127) / slope);
+        const corners = [flat[i * 2], flat[i * 2 + 1], flat[j * 2], flat[j * 2 + 1], top[j * 2], top[j * 2 + 1], top[i * 2], top[i * 2 + 1]];
+        for (let k = 0; k < 4; k++) {
+          const q = p + k;
+          position[q * 3] = corners[k * 2];
+          position[q * 3 + 1] = k >= 2 ? h + rise : h;
+          position[q * 3 + 2] = -corners[k * 2 + 1];
+          normal[q * 3] = nx;
+          normal[q * 3 + 1] = ny;
+          normal[q * 3 + 2] = nz;
+          wall[q * 4 + 1] = h;
+          wall[q * 4 + 3] = h;
+          seed[q] = s;
+        }
+        index[ix++] = p;
+        index[ix++] = p + 1;
+        index[ix++] = p + 2;
+        index[ix++] = p;
+        index[ix++] = p + 2;
+        index[ix++] = p + 3;
+        p += 4;
+      }
+    }
+
+    // The flat part: the whole roof, or the top of a pitched one.
+    const cap = top ?? flat;
     const tris = earcut(flat, holes.length ? holes : undefined, 2);
     for (let i = 0; i < buildingVerts; i++) {
       const q = p + i;
-      position[q * 3] = flat[i * 2];
-      position[q * 3 + 1] = h;
-      position[q * 3 + 2] = -flat[i * 2 + 1];
+      position[q * 3] = cap[i * 2];
+      position[q * 3 + 1] = h + rise;
+      position[q * 3 + 2] = -cap[i * 2 + 1];
       normal[q * 3 + 1] = 127;
+      wall[q * 4] = flatFlag;
       wall[q * 4 + 1] = h;
       wall[q * 4 + 3] = h;
       seed[q] = s;
@@ -338,12 +439,80 @@ export async function loadChunk(
       shadowIndex[six++] = sp + i1;
       shadowIndex[six++] = sp + i2;
     }
+    p += buildingVerts;
+
+    // A chimney on some tiled roofs: a small white block standing on the top.
+    if (top && footprintArea > 70 && seedOf(b * 331 + salt) < 0.4) {
+      let cx = 0;
+      let cy = 0;
+      for (let i = 0; i < buildingVerts; i++) {
+        cx += top[i * 2];
+        cy += top[i * 2 + 1];
+      }
+      cx /= buildingVerts;
+      cy /= buildingVerts;
+      const towards = Math.floor(seedOf(b * 53 + salt) * buildingVerts);
+      const mx = cx + (top[towards * 2] - cx) * 0.45;
+      const my = cy + (top[towards * 2 + 1] - cy) * 0.45;
+      if (insideRing(top, 0, buildingVerts, mx, my)) {
+        const half = 0.8;
+        const base = h + rise;
+        const tall = 1.9;
+        // Corners counter-clockwise on the map, then the four sides and the lid.
+        const xs = [mx - half, mx + half, mx + half, mx - half];
+        const ys = [my - half, my - half, my + half, my + half];
+        const sides = [0, -1, 1, 0, 0, 1, -1, 0];
+        for (let side = 0; side < 4; side++) {
+          const i0 = side;
+          const i1 = (side + 1) % 4;
+          for (let k = 0; k < 4; k++) {
+            const end = k === 1 || k === 2;
+            const q = p + k;
+            position[q * 3] = xs[end ? i1 : i0];
+            position[q * 3 + 1] = base + (k >= 2 ? tall : 0);
+            position[q * 3 + 2] = -ys[end ? i1 : i0];
+            normal[q * 3] = sides[side * 2] * 127;
+            normal[q * 3 + 2] = -sides[side * 2 + 1] * 127;
+            // Too short for windows, and lit like the upper part of a wall.
+            wall[q * 4 + 1] = h;
+            wall[q * 4 + 2] = half * 2;
+            wall[q * 4 + 3] = h;
+            seed[q] = s;
+          }
+          index[ix++] = p;
+          index[ix++] = p + 1;
+          index[ix++] = p + 2;
+          index[ix++] = p;
+          index[ix++] = p + 2;
+          index[ix++] = p + 3;
+          p += 4;
+        }
+        for (let k = 0; k < 4; k++) {
+          const q = p + k;
+          position[q * 3] = xs[k];
+          position[q * 3 + 1] = base + tall;
+          position[q * 3 + 2] = -ys[k];
+          normal[q * 3 + 1] = 127;
+          wall[q * 4] = 1;
+          wall[q * 4 + 1] = h;
+          wall[q * 4 + 3] = h;
+          seed[q] = s;
+        }
+        index[ix++] = p;
+        index[ix++] = p + 1;
+        index[ix++] = p + 2;
+        index[ix++] = p;
+        index[ix++] = p + 2;
+        index[ix++] = p + 3;
+        p += 4;
+      }
+    }
+
     for (let i = 0; i < buildingVerts; i++) {
       shadowPos[(sp + i) * 3] = flat[i * 2] + shadowX;
       shadowPos[(sp + i) * 3 + 2] = -(flat[i * 2 + 1] + shadowY);
     }
     sp += buildingVerts;
-    p += buildingVerts;
   }
 
   const geometry = new BufferGeometry();

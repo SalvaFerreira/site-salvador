@@ -77,8 +77,11 @@ void main() {
     vec3 tiles = mix(uRoofA, uRoofB, pick);
     tiles = mix(tiles, uRoofC, step(hash(vec3(seed * 19.7, 6.3, 8.9)), 0.22));
     tiles *= mix(0.84, 1.12, hash(vec3(seed * 37.1, 2.9, 5.3)));
-    float flatRoof = max(step(34.0, height), step(pick, 0.14));
+    // The geometry says which roofs are flat and grey (tall or modern buildings).
+    float flatRoof = step(0.5, vWall.x);
     color = mix(tiles, uRoofFlat, flatRoof);
+    // Each face of a pitched roof catches the sun differently.
+    color *= 0.66 + 0.5 * clamp(vSun, 0.0, 1.0);
     color = mix(color, accent * 0.72, featured * (1.0 - off));
     color = mix(color, uOff * 1.25, off);
   } else {
@@ -116,6 +119,22 @@ void main() {
       float coverage = 0.48 * 0.54;
       float window = mix(mask, coverage * step(up, floors * FLOOR_H), smoothstep(0.25, 0.9, size));
       color = mix(color, uGlass * light, window * mix(0.78, 0.3, off));
+
+      // Close up: shop fronts and doors on the ground floor, balconies on some
+      // buildings, and a cornice under the roof. All fade out with distance.
+      float detail = 1.0 - smoothstep(0.12, 0.45, size);
+      float ground = 1.0 - step(0.5, id.y);
+      float shop = step(0.12, f.x) * step(f.x, 0.88) * step(f.y, 0.8) * ground;
+      color = mix(color, uGlass * light * 0.8, shop * detail * (1.0 - off) * 0.85);
+      float railing = step(hash(vec3(seed * 29.3, 4.4, 1.9)), 0.4) * (1.0 - ground) * step(id.y, floors - 0.5);
+      float balcony = step(0.12, f.x) * step(f.x, 0.88) * step(0.17, f.y) * step(f.y, 0.25);
+      color = mix(color, vec3(0.2, 0.22, 0.25) * light, balcony * railing * detail * 0.8);
+    }
+    {
+      float fine = 1.0 - smoothstep(0.03, 0.12, fwidth(up));
+      float cornice = step(height - 0.55, up);
+      float underline = step(height - 0.85, up) * (1.0 - cornice);
+      color *= 1.0 + 0.1 * cornice * fine - 0.18 * underline * fine;
     }
   }
 

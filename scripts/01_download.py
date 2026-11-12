@@ -112,6 +112,30 @@ def main():
         fetch(f"building_relations_extra_{name}", f'relation["building"]["type"="multipolygon"]({b});\nout body geom qt;')
         fetch(f"roads_extra_{name}", f'way["highway"~"^({kinds})(_link)?$"]({b});\nout tags geom qt;')
 
+    print("Ground cover: airport, woods, pitches, cemeteries, industrial and railway land")
+    area = bbox(SOUTH, WEST, AREA_NORTH, AREA_EAST)
+    NL = chr(10)
+    fetch("cover_airport", 'way["aeroway"~"^(runway|taxiway|apron)$"](' + area + ");" + NL + "out body geom;")
+    green = "forest|wood|scrub|meadow|grass|pitch|golf_course|allotments|cemetery|recreation_ground"
+    fetch(
+        "cover_green",
+        "("
+        + 'way["landuse"~"^(' + green + ')$"](' + area + ");"
+        + 'relation["landuse"~"^(' + green + ')$"](' + area + ");"
+        + 'way["natural"~"^(wood|scrub|sand|beach)$"](' + area + ");"
+        + 'relation["natural"~"^(wood|scrub)$"](' + area + ");"
+        + 'way["leisure"~"^(pitch|track|golf_course)$"](' + area + ");"
+        + ");" + NL + "out body geom;",
+    )
+    fetch(
+        "cover_grey",
+        "("
+        + 'way["landuse"~"^(industrial|railway|military|construction|commercial|retail)$"](' + area + ");"
+        + 'relation["landuse"~"^(industrial|railway|military)$"](' + area + ");"
+        + 'way["amenity"="parking"](' + area + ");"
+        + ");" + NL + "out body geom;",
+    )
+
     print("Tram and metro lines")
     fetch("transit", f'way["railway"~"^(tram|subway)$"]({FULL});\nout tags geom;')
 
