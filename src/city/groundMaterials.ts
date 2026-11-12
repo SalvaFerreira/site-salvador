@@ -278,7 +278,7 @@ void main() {
   #include <colorspace_fragment>
 }
 `,
-    uniforms: { ...shared, uWater: { value: new Color("#8fa9bd") } },
+    uniforms: { ...shared, uWater: { value: new Color("#7ea5c6") } },
   });
 }
 

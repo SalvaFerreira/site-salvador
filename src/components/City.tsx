@@ -512,6 +512,8 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
       el.style.visibility = "visible";
       el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
       el.classList.toggle("is-away", away);
+      // Near the top of the screen the details open downwards instead of up.
+      el.classList.toggle("opens-down", y < size.height * 0.42);
       if (away) el.style.setProperty("--toward", `${angle}rad`);
     }
   });
@@ -747,6 +749,40 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
 }
 
 const trim = (path: string) => path.replace(/\/+$/, "");
+
+/** Plain text of a project's Markdown body, without HTML comments or tags. */
+function plainText(html: string): string {
+  return html
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#39;|&rsquo;/g, "\u2019")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * What a label shows when the pointer rests on it (or it has keyboard focus):
+ * where and when, the start of the text from the content file, the stack.
+ * Nothing here is written for the label; it all comes from the frontmatter and body.
+ */
+function LabelMore({ stop, projects }: { stop: Stop; projects: Project[] }) {
+  const members = stop.members.map((m) => projects[m]);
+  const first = members[0];
+  const when = [...new Set(members.map((p) => p.period).filter(Boolean))].join(" / ");
+  const text = plainText(first.html);
+  const stack = [...new Set(members.flatMap((p) => p.stack))];
+  return (
+    <span className="place-more">
+      <span className="place-more-meta">{[first.place, when].filter(Boolean).join(" \u00b7 ")}</span>
+      {members.length > 1 && <span className="place-more-list">{members.map((p) => p.title).join(" \u00b7 ")}</span>}
+      {text && <span className="place-more-text">{text}</span>}
+      {stack.length > 0 && <span className="place-more-meta">{stack.join(" \u00b7 ")}</span>}
+      <span className="place-more-open">Click to open</span>
+    </span>
+  );
+}
 
 /** The 3D city needs WebGL 2 on a real GPU, and is too heavy for low-memory phones. */
 function canRunCity(): boolean {
@@ -994,6 +1030,7 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
               <span className="place-name">{s.label}</span>
               <span className="place-what">{s.line}</span>
               <span className="place-arrow" aria-hidden="true" />
+              <LabelMore stop={s} projects={projects} />
             </button>
           ))}
         </div>

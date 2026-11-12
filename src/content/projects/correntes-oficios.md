@@ -22,15 +22,3 @@ links:
 ---
 
 Developing an LLM-powered agent that reads unstructured caregiver-replacement orders (PDF), updates the internal care-management system and reconciles caregiver payments automatically, replacing an end-to-end manual process.
-
-### Problem
-
-TODO: texto do Salvador
-
-### What I did
-
-TODO: texto do Salvador
-
-### Result
-
-TODO: texto do Salvador

@@ -63,9 +63,9 @@ export async function loadCover(): Promise<CoverData> {
 /** Classes of ground cover (scripts/06_cover.py) and the colour each is drawn in. */
 export const COVER = { wood: 0, grass: 1, pitch: 2, cemetery: 3, sand: 4, grey: 5, parking: 6, apron: 7 } as const;
 const COVER_COLORS: Record<number, string> = {
-  0: "#b3c6a0",
-  1: "#cddabc",
-  2: "#bdd0ab",
+  0: "#a3c28e",
+  1: "#c4dbab",
+  2: "#acd29a",
   3: "#d7dacf",
   4: "#ece4cd",
   5: "#e0ddd5",
@@ -96,7 +96,7 @@ function grassMaterial(color: string) {
   return grassMaterials.get(color)!;
 }
 
-const TREE_COLORS = ["#86a676", "#7a9b6c", "#92b07f", "#6f8f64", "#9bb385"].map((c) => new Color(c));
+const TREE_COLORS = ["#73a35f", "#669656", "#82b06a", "#5c8a4f", "#8db574"].map((c) => new Color(c));
 
 /** A low-poly canopy: lighter on top, darker underneath. */
 function createCanopyGeometry(): BufferGeometry {
@@ -312,7 +312,7 @@ export function Parks({ plan, cover }: ParksProps) {
             </mesh>
           ),
         )}
-      <mesh geometry={green} material={grassMaterial("#c6d6b3")} position-y={0.15} renderOrder={-1} raycast={noRaycast} />
+      <mesh geometry={green} material={grassMaterial("#bcd6a2")} position-y={0.15} renderOrder={-1} raycast={noRaycast} />
       {tiles.map((tile, i) => (
         <group key={i}>
           <primitive object={tile.canopies} />

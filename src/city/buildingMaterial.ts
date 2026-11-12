@@ -167,16 +167,16 @@ export function createBuildingMaterial(): ShaderMaterial {
       ...shared,
       uWalls: {
         value: [
-          new Color("#f5f2ec"), // white
-          new Color("#efe9dd"), // cream
-          new Color("#ebe3d2"), // warm cream
-          new Color("#ede5df"), // pale pink
-          new Color("#e6e6e2"), // pale grey
+          new Color("#f5f2ea"), // white
+          new Color("#f0e3c6"), // cream
+          new Color("#efd49a"), // Lisbon yellow, softened
+          new Color("#ecc8b9"), // pink
+          new Color("#d3dee6"), // pale blue
         ],
       },
-      uRoofA: { value: new Color("#c99c86") },
-      uRoofB: { value: new Color("#d6b19c") },
-      uRoofC: { value: new Color("#b08e7e") },
+      uRoofA: { value: new Color("#c98466") },
+      uRoofB: { value: new Color("#d79e80") },
+      uRoofC: { value: new Color("#ad7a66") },
       uRoofFlat: { value: new Color("#d6d3cc") },
       uGlass: { value: new Color("#8d949a") },
       // Colour of each featured building, by its index (all the same accent, see City.tsx).

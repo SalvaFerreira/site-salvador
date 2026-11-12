@@ -17,15 +17,3 @@ stack: []
 ---
 
 Delivered Python, SQL and Excel training to learners aged 3–17, adapting technical content to very different levels of experience.
-
-### Problem
-
-TODO: texto do Salvador
-
-### What I did
-
-TODO: texto do Salvador
-
-### Result
-
-TODO: texto do Salvador

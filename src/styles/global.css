@@ -332,6 +332,78 @@ button:focus-visible {
   box-shadow: inset 0 0 0 2px #9a968e;
 }
 
+/* Details of a place, shown while the pointer rests on its label */
+.place-more {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 340px;
+  padding: 12px 14px 11px;
+  border-radius: 10px;
+  background: var(--chip);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  color: var(--paper);
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0.16s;
+  pointer-events: none;
+}
+
+.opens-down .place-more {
+  top: calc(100% + 10px);
+  bottom: auto;
+  transform: translateY(-4px);
+}
+
+.place-label:hover,
+.place-label:focus-visible {
+  z-index: 2;
+}
+
+.place-label:hover .place-more,
+.place-label:focus-visible .place-more {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.place-more-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.place-more-list {
+  font: 14px/1.3 var(--serif);
+}
+
+.place-more-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  color: #ddd6c9;
+}
+
+.place-more-open {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .place-more {
+    transition: none;
+  }
+}
+
 /* A place that is off screen: its label waits at the edge and points the way */
 .place-arrow {
   display: none;

@@ -2,12 +2,10 @@
 title: "LearnVestor"
 label: "LearnVestor"
 category: "personal"
-# Marquês de Pombal. The schema needs a place: it is shown in the panel.
-place: "Marquês de Pombal"
+place: "Marvila"
 role: "Personal Project - Financial Literacy App"
-# The 9-storey building on the corner of the roundabout (the point given first, [-9.1486, 38.7256],
-# fell on a low canopy next to it).
-coordinates: [-9.14866, 38.725933]
+# The RTP office building, Avenida Marechal Gomes da Costa 37.
+coordinates: [-9.11799, 38.759094]
 order: 8
 # Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
 images: []
@@ -27,15 +25,3 @@ links:
 Learn investing through gamification with LearnVestor, a free app with no account needed. Track your virtual portfolio, complete lessons, and build financial literacy.
 
 <!-- The paragraph above is the description from the LearnVestor website. -->
-
-### Problem
-
-TODO: texto do Salvador
-
-### What I did
-
-TODO: texto do Salvador
-
-### Result
-
-TODO: texto do Salvador

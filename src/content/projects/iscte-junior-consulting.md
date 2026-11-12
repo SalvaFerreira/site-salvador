@@ -20,15 +20,3 @@ links:
 
 - Built 50+ databases, dashboards and reports (Power BI, Excel) for client projects and internal teams, turning raw data into clear recommendations for decision-makers.
 - Contributed to the organisation’s ISO 9001 certification (quality management and process standardisation) alongside the analytics department.
-
-### Problem
-
-TODO: texto do Salvador
-
-### What I did
-
-TODO: texto do Salvador
-
-### Result
-
-TODO: texto do Salvador
