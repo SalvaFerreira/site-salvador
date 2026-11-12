@@ -113,7 +113,7 @@ const box = (w: number, h: number, d: number, x: number, y: number, z: number, c
 const CAR_COUNT = 4000;
 /** Local streets carry cars only this close to the centre (metres from the Baixa). */
 const LOCAL_STREETS_WITHIN_M = 2200;
-const CAR_COLORS = ["#f1f1ee", "#f1f1ee", "#b9bcc0", "#74787d", "#1f2124", "#a8261c", "#27477d", "#e8c02c"].map(
+const CAR_COLORS = ["#f1f1ee", "#f1f1ee", "#b9bcc0", "#74787d", "#1f2124", "#a4776e", "#76869b", "#d8c98f"].map(
   (c) => new Color(c),
 );
 
@@ -270,7 +270,7 @@ const TRAM_SPEED = 7; // m/s
 /** A Lisbon tram: yellow below, white above, a band of windows between. */
 function createTramGeometry(): BufferGeometry {
   return mergeGeometries([
-    box(17, 2.2, 3.4, 0, 1.6, 0, "#f0c419"),
+    box(17, 2.2, 3.4, 0, 1.6, 0, "#dcc684"),
     box(16.4, 1.3, 3.2, 0, 3.35, 0, "#3b4651"),
     box(17, 0.7, 3.4, 0, 4.35, 0, "#f4f1e8"),
     box(9, 0.5, 1.4, 0, 4.95, 0, "#d9d5ca"),
@@ -316,11 +316,11 @@ const CARRIAGES = 5;
 const CARRIAGE_GAP_M = 30;
 /** Livery of the lower body, by line. */
 const TRAIN_COLORS: Record<string, string> = {
-  "Linha de Cascais": "#f1c330",
-  "Linha de Sintra": "#f1c330",
-  "Linha de Cintura": "#f1c330",
-  "Linha do Sul": "#3a6db5",
-  "Linha do Norte": "#5f8f4e",
+  "Linha de Cascais": "#d9c88f",
+  "Linha de Sintra": "#d9c88f",
+  "Linha de Cintura": "#d9c88f",
+  "Linha do Sul": "#8a9db8",
+  "Linha do Norte": "#93a68a",
 };
 
 /** The truss of the bridge: where it starts (track height), how far from the track, how tall. */
@@ -503,7 +503,7 @@ const SAIL_SPEED = 2.2;
 function createFerryGeometry(): BufferGeometry {
   return mergeGeometries([
     box(30, 3, 9, 0, 1.5, 0, "#f3f1ea"),
-    box(20, 2.6, 7, -1, 4.3, 0, "#e9772b"),
+    box(20, 2.6, 7, -1, 4.3, 0, "#c9ab95"),
     box(6, 2, 5, 4, 6.6, 0, "#f3f1ea"),
   ]);
 }
@@ -609,7 +609,7 @@ function createPlaneGeometry(): BufferGeometry {
     box(38, 4, 4, 0, 0, 0, "#f4f4f1"),
     box(6, 0.6, 36, -1, -0.6, 0, "#e3e5e8"),
     box(3.4, 0.5, 13, -17, 0.6, 0, "#e3e5e8"),
-    box(5, 6, 0.6, -16.5, 3.6, 0, "#c8473a"),
+    box(5, 6, 0.6, -16.5, 3.6, 0, "#b7877c"),
   ]);
 }
 

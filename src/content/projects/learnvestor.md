@@ -2,9 +2,12 @@
 title: "LearnVestor"
 label: "LearnVestor"
 category: "personal"
-# Placeholder neighbourhood and building: replace with the place and coordinates you want.
-place: "Alvalade"
-coordinates: [-9.1440, 38.7530]
+# Marquês de Pombal. The schema needs a place: it is shown in the panel.
+place: "Marquês de Pombal"
+role: "Personal Project - Financial Literacy App"
+# The 9-storey building on the corner of the roundabout (the point given first, [-9.1486, 38.7256],
+# fell on a low canopy next to it).
+coordinates: [-9.14866, 38.725933]
 order: 8
 # Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
 images: []

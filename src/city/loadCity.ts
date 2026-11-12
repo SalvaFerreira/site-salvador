@@ -218,10 +218,15 @@ function findFeatured(f: Footprints, chunk: ChunkInfo, targets: Target[]): Map<n
       cx /= n;
       cy /= n;
       const distance = insideRing(f.coords, vert, n, x, y) ? 0 : Math.hypot(cx - x, cy - y);
-      if (distance <= SNAP_M && (!bestInfo || distance < bestInfo.distance)) {
+      if (distance <= SNAP_M && (!bestInfo || distance <= bestInfo.distance)) {
         let radius = 0;
         for (let i = 0; i < n; i++) {
           radius = Math.max(radius, Math.hypot(f.coords[(vert + i) * 2] - cx, f.coords[(vert + i) * 2 + 1] - cy));
+        }
+        // A point inside two footprints (a building and a part of it): the bigger one.
+        if (bestInfo && distance === bestInfo.distance && radius <= bestInfo.radius) {
+          for (let r = 0; r < f.ringCounts[b]; r++) vert += f.vertCounts[ring++];
+          continue;
         }
         best = b;
         bestInfo = {

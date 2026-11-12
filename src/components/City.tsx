@@ -5,7 +5,7 @@ import { Color, MOUSE, TOUCH, Vector3, type BufferGeometry, type OrthographicCam
 import type { Line2, OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ACCENT_SLOTS, createBuildingMaterial } from "../city/buildingMaterial";
 import { BACKDROP, shared } from "../city/environment";
-import { createRiverMaterial, createShadowMaterial, createStreetMaterial, STREET_HALF_WIDTH } from "../city/groundMaterials";
+import { createHaloMaterial, createRiverMaterial, createShadowMaterial, createStreetMaterial, STREET_HALF_WIDTH } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type Featured, type Manifest } from "../city/loadCity";
 import { Bridge, BRIDGE_DECK_M, loadCover, loadPlan, Parks, type CoverData, type PlanData } from "./Extras";
@@ -56,13 +56,11 @@ export interface Stop {
   onMap: boolean;
 }
 
-/** Colour code, also used by the label dots (see global.css). */
-export const CATEGORY_COLOR: Record<Category | "none", string> = {
-  job: "#f2b632",
-  education: "#4f86d9",
-  personal: "#55a868",
-  none: "#e9e4da",
-};
+/**
+ * The one colour of Salvador's places: buildings, label dots, the journey line.
+ * The rest of the city is neutral, like an architect's model. Same as --accent in global.css.
+ */
+export const ACCENT = "#e8833a";
 
 interface Chunk {
   id: string;
@@ -422,7 +420,7 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
       topEdge.current = (document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 54) + 12;
     }
     const top = topEdge.current;
-    const bottom = size.height - 104; // clear of the controls and the colour key
+    const bottom = size.height - 64; // clear of the controls
     const boxes: { x: number; y: number; w: number; h: number }[] = [];
 
     for (const spot of spots.current ?? []) {
@@ -452,9 +450,16 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
       const away = Math.abs(x - (px - w / 2)) > 1 || Math.abs(y - (py - h)) > 1;
 
       // Labels waiting at an edge must not pile up on each other.
-      for (const b of boxes) {
-        if (x < b.x + b.w + 6 && x + w + 6 > b.x && y < b.y + b.h + 4 && y + h + 4 > b.y) {
-          y = b.y + b.h + 4 <= bottom - h ? b.y + b.h + 4 : b.y - h - 4;
+      // Step down past each label in the way (up, when there is no room below),
+      // until the spot is free.
+      let down = true;
+      for (let tries = 0; tries < boxes.length * 2 + 2; tries++) {
+        const hit = boxes.find((b) => x < b.x + b.w + 6 && x + w + 6 > b.x && y < b.y + b.h + 4 && y + h + 4 > b.y);
+        if (!hit) break;
+        if (down && hit.y + hit.h + 4 <= bottom - h) y = hit.y + hit.h + 4;
+        else {
+          down = false;
+          y = hit.y - h - 4;
         }
       }
       boxes.push({ x, y, w, h });
@@ -516,13 +521,13 @@ function Journey({ stops, places }: { stops: Stop[]; places: Place[] }) {
     <Line
       ref={line}
       points={points}
-      color="#1f2126"
+      color={ACCENT}
       lineWidth={2.6}
       dashed
       dashSize={9}
       gapSize={6}
       transparent
-      opacity={0.8}
+      opacity={0.9}
       depthTest={false}
       depthWrite={false}
       renderOrder={10}
@@ -549,13 +554,15 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
   const { manifest, land, roads, chunks, places, plan, cover } = useCity(stops, projects, onStats);
   const buildingMaterial = useMemo(() => {
     const material = createBuildingMaterial();
-    // Each featured building takes the colour of its category.
     stops.forEach((s) => {
       const slot = s.members[0];
-      if (slot < ACCENT_SLOTS) (material.uniforms.uAccents.value as Color[])[slot].set(CATEGORY_COLOR[s.category ?? "none"]);
+      if (slot < ACCENT_SLOTS) (material.uniforms.uAccents.value as Color[])[slot].set(ACCENT);
     });
     return material;
   }, [stops]);
+  const haloMaterial = useMemo(() => createHaloMaterial(ACCENT), []);
+  // Buildings with the lights off get no glow.
+  const dark = useMemo(() => new Set(stops.filter((s) => s.off).map((s) => s.members[0])), [stops]);
   const streetMaterial = useMemo(createStreetMaterial, []);
   const riverMaterial = useMemo(createRiverMaterial, []);
   const shadowMaterial = useMemo(createShadowMaterial, []);
@@ -599,7 +606,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
 
       {land && (
         <mesh geometry={land} renderOrder={-2} raycast={noRaycast}>
-          <meshBasicMaterial color="#e6dfd2" />
+          <meshBasicMaterial color="#ece8e0" />
         </mesh>
       )}
 
@@ -631,6 +638,15 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
           raycast={noRaycast}
         />
       ))}
+
+      {/* A soft glow on the ground around each of Salvador's lit buildings. */}
+      {places
+        .filter((f) => f.radius > 0 && !dark.has(f.index))
+        .map((f) => (
+          <mesh key={f.index} position={[f.x, 0.9, f.z]} rotation-x={-Math.PI / 2} material={haloMaterial} renderOrder={3} raycast={noRaycast}>
+            <planeGeometry args={[f.radius * 3 + 50, f.radius * 3 + 50]} />
+          </mesh>
+        ))}
 
       {/* The merged city is not raycast (a million triangles); each featured
           building gets an invisible box to click. Its label is a real button, outside the canvas. */}
@@ -910,7 +926,6 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
                 spots.current[i] = { index: s.members[0], element };
               }}
               className={`place-label${s.off ? " is-off" : ""}`}
-              style={{ "--dot": CATEGORY_COLOR[s.category ?? "none"] } as React.CSSProperties}
               hidden={stop === s}
               onClick={() => select(s.members[0])}
               onPointerOver={() => setHovered(s.members[0])}

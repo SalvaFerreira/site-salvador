@@ -63,14 +63,14 @@ export async function loadCover(): Promise<CoverData> {
 /** Classes of ground cover (scripts/06_cover.py) and the colour each is drawn in. */
 export const COVER = { wood: 0, grass: 1, pitch: 2, cemetery: 3, sand: 4, grey: 5, parking: 6, apron: 7 } as const;
 const COVER_COLORS: Record<number, string> = {
-  0: "#97bf7c",
-  1: "#b9d59d",
-  2: "#86c47c",
-  3: "#cbd3c1",
-  4: "#ecdcae",
-  5: "#dad4c8",
-  6: "#d0cfca",
-  7: "#cdced0",
+  0: "#b3c6a0",
+  1: "#cddabc",
+  2: "#bdd0ab",
+  3: "#d7dacf",
+  4: "#ece4cd",
+  5: "#e0ddd5",
+  6: "#d9d7d2",
+  7: "#d6d6d6",
 };
 
 export async function loadPlan(): Promise<PlanData> {
@@ -88,7 +88,7 @@ const WOODLAND_M2_PER_TREE = 230;
 const WOODLAND_TREES_MAX = 45000;
 /** Trees are drawn in square tiles this wide, so that only the ones near the view are drawn. */
 const TREE_TILE_M = 1200;
-const TREE_COLORS = ["#5f9a4a", "#4f8a43", "#6fa653", "#467a3f", "#7aa84f"].map((c) => new Color(c));
+const TREE_COLORS = ["#86a676", "#7a9b6c", "#92b07f", "#6f8f64", "#9bb385"].map((c) => new Color(c));
 
 /** A low-poly canopy: lighter on top, darker underneath. */
 function createCanopyGeometry(): BufferGeometry {
@@ -294,7 +294,7 @@ export function Parks({ plan, cover }: ParksProps) {
           </mesh>
         ))}
       <mesh geometry={green} position-y={0.15} renderOrder={-1} raycast={noRaycast}>
-        <meshBasicMaterial color="#a9c98a" />
+        <meshBasicMaterial color="#c6d6b3" />
       </mesh>
       {tiles.map((tile, i) => (
         <group key={i}>
@@ -310,7 +310,7 @@ export function Parks({ plan, cover }: ParksProps) {
 
 export const BRIDGE_DECK_M = 70;
 const CABLE_SIDE_SPAN_M = 480;
-const BRIDGE_RED = "#c4472f";
+const BRIDGE_RED = "#b4705f";
 
 /** Ponte 25 de Abril: deck with traffic, red towers and main cables. */
 export function Bridge({ manifest }: { manifest: Manifest }) {

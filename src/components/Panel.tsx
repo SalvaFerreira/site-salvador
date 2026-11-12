@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { CATEGORY_COLOR, type Category, type Project, type Stop } from "./City";
+import { type Category, type Project, type Stop } from "./City";
 
 const CATEGORY_NAME: Record<Category, string> = {
   job: "Work",
@@ -67,10 +67,10 @@ export default function Panel({ stop, projects, active, onClose, tour }: Props) 
         </button>
       </div>
 
-      <p className="panel-place">
+      <p className={`panel-place${stop.off ? " is-off" : ""}`}>
         {stop.category && (
           <>
-            <span className="place-dot" style={{ "--dot": CATEGORY_COLOR[stop.category] } as React.CSSProperties} aria-hidden="true" />
+            <span className="place-dot" aria-hidden="true" />
             {CATEGORY_NAME[stop.category]} ·{" "}
           </>
         )}

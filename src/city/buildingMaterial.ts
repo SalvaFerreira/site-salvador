@@ -1,5 +1,6 @@
-// Buildings in daylight: pale Lisbon facades with rows of windows and
-// terracotta roofs, all drawn procedurally (no textures).
+// Buildings as an architect's model: cream and white facades, soft terracotta
+// roofs, quiet windows, all drawn procedurally (no textures). Only Salvador's
+// buildings are in colour, all in the same accent, with a darker outline.
 import { Color, ShaderMaterial } from "three";
 import { shared } from "./environment";
 
@@ -63,8 +64,8 @@ void main() {
   float hovered = featured * (1.0 - step(0.5, abs(tag - uHover)));
   float seed = fract(vSeed);
   float height = vWall.w;
-  // Each featured building has its own colour (its category's).
   vec3 accent = uAccents[int(clamp(tag - 1.0, 0.0, 15.0))];
+  float lit = featured * (1.0 - off);
 
   vec3 color;
 
@@ -81,7 +82,7 @@ void main() {
     color = mix(tiles, uRoofFlat, flatRoof);
     // Each face of a pitched roof catches the sun differently.
     color *= 0.66 + 0.5 * clamp(vSun, 0.0, 1.0);
-    color = mix(color, accent * 0.72, featured * (1.0 - off));
+    color = mix(color, accent * 0.82, lit);
     color = mix(color, uOff * 1.25, off);
   } else {
     float along = vWall.x;
@@ -92,7 +93,7 @@ void main() {
     float pick = hash(vec3(seed * 53.9, 9.2, 2.3));
     int which = pick < 0.44 ? 0 : pick < 0.76 ? 1 : pick < 0.86 ? 2 : pick < 0.94 ? 3 : 4;
     vec3 facade = uWalls[which];
-    facade = mix(facade, accent, featured * (1.0 - off));
+    facade = mix(facade, accent, lit);
     facade = mix(facade, uOff, off);
 
     // Sunlit and shaded sides, a darker band where the wall meets the street.
@@ -117,7 +118,7 @@ void main() {
       float size = max(fw.x, fw.y);
       float coverage = 0.48 * 0.54;
       float window = mix(mask, coverage * step(up, floors * FLOOR_H), smoothstep(0.25, 0.9, size));
-      color = mix(color, uGlass * light, window * mix(0.78, 0.3, off));
+      color = mix(color, uGlass * light, window * mix(mix(0.5, 0.42, lit), 0.3, off));
 
       // Close up: shop fronts and doors on the ground floor, balconies on some
       // buildings, and a cornice under the roof. All fade out with distance.
@@ -129,6 +130,13 @@ void main() {
       float balcony = step(0.12, f.x) * step(f.x, 0.88) * step(0.17, f.y) * step(f.y, 0.25);
       color = mix(color, vec3(0.2, 0.22, 0.25) * light, balcony * railing * detail * 0.8);
     }
+    // Outline of a featured building: its corners and the top of its walls,
+    // at least a pixel and a half wide at any zoom.
+    {
+      float w = max(0.8, 1.5 * max(fwidth(along), fwidth(up)));
+      float rim = max(max(1.0 - step(w, along), step(len - w, along)), step(height - w, up));
+      color = mix(color, accent * 0.5, rim * lit);
+    }
     {
       float fine = 1.0 - smoothstep(0.03, 0.12, fwidth(up));
       float cornice = step(height - 0.55, up);
@@ -138,8 +146,6 @@ void main() {
   }
 
   color *= 1.0 + 0.12 * hovered;
-  // The Plan layer washes the city out so the drawing on top can be read.
-  float grey = dot(color, vec3(0.3, 0.6, 0.1));
 
   gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>
@@ -154,22 +160,22 @@ export function createBuildingMaterial(): ShaderMaterial {
       ...shared,
       uWalls: {
         value: [
-          new Color("#f3eee4"), // white
-          new Color("#ecdfc4"), // cream
-          new Color("#efd491"), // yellow
-          new Color("#e9c3b2"), // pink
-          new Color("#d3dbe2"), // blue-grey
+          new Color("#f5f2ec"), // white
+          new Color("#efe9dd"), // cream
+          new Color("#ebe3d2"), // warm cream
+          new Color("#ede5df"), // pale pink
+          new Color("#e6e6e2"), // pale grey
         ],
       },
-      uRoofA: { value: new Color("#c4603f") },
-      uRoofB: { value: new Color("#d97f5a") },
-      uRoofC: { value: new Color("#a5523c") },
-      uRoofFlat: { value: new Color("#c6c4be") },
-      uGlass: { value: new Color("#56626e") },
-      // Colour of each featured building, by its index; set from the place's category.
-      uAccents: { value: Array.from({ length: ACCENT_SLOTS }, () => new Color("#f2b632")) },
+      uRoofA: { value: new Color("#c99c86") },
+      uRoofB: { value: new Color("#d6b19c") },
+      uRoofC: { value: new Color("#b08e7e") },
+      uRoofFlat: { value: new Color("#d6d3cc") },
+      uGlass: { value: new Color("#8d949a") },
+      // Colour of each featured building, by its index (all the same accent, see City.tsx).
+      uAccents: { value: Array.from({ length: ACCENT_SLOTS }, () => new Color("#e8833a")) },
       // "Lights off" building.
-      uOff: { value: new Color("#34363b") },
+      uOff: { value: new Color("#3d3f44") },
       uHover: { value: -1 },
     },
   });

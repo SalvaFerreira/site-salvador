@@ -4,7 +4,8 @@
   --chip: rgba(31, 33, 38, 0.94);
   --paper: #f4efe6;
   --muted: #b3ada1;
-  --accent: #f2b632;
+  /* The one colour of Salvador's places (ACCENT in City.tsx). */
+  --accent: #e8833a;
 }
 
 html,
@@ -52,7 +53,6 @@ button:focus-visible {
 /* Interface chips over the map */
 .topbar,
 .controls,
-.colour-key,
 .attribution,
 .stats {
   position: fixed;
@@ -166,23 +166,6 @@ button:focus-visible {
   color: var(--ink);
 }
 
-/* Colour code of the places */
-.colour-key {
-  left: 14px;
-  bottom: 62px;
-  display: flex;
-  gap: 14px;
-  padding: 7px 12px;
-  list-style: none;
-  color: var(--muted);
-}
-
-.colour-key li {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
 .attribution {
   right: 14px;
   bottom: 14px;
@@ -265,7 +248,7 @@ button:focus-visible {
 }
 
 .intro-actions button:hover {
-  background: #f6c75a;
+  background: #ee9853;
 }
 
 .intro-actions a {
@@ -339,14 +322,14 @@ button:focus-visible {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--dot, var(--accent));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot, var(--accent)) 28%, transparent);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 /* "Lights off": the dot is only a ring */
 .is-off .place-dot {
   background: none;
-  box-shadow: inset 0 0 0 2px var(--dot, var(--accent));
+  box-shadow: inset 0 0 0 2px #9a968e;
 }
 
 /* A place that is off screen: its label waits at the edge and points the way */
@@ -556,7 +539,6 @@ button:focus-visible {
 /* ?shot: nothing but the city */
 .shot .topbar,
 .shot .controls,
-.shot .colour-key,
 .shot .intro,
 .shot .attribution,
 .shot .labels,
@@ -634,10 +616,6 @@ button:focus-visible {
   .topbar nav {
     padding-left: 0;
     border-left: 0;
-  }
-
-  .colour-key {
-    display: none;
   }
 
   .attribution {

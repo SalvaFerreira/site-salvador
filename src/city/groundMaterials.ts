@@ -35,7 +35,7 @@ void main() {
   #include <colorspace_fragment>
 }
 `,
-    uniforms: { ...shared, uAsphalt: { value: new Color("#bcbcbb") }, uPaint: { value: new Color("#f2efe8") } },
+    uniforms: { ...shared, uAsphalt: { value: new Color("#d2d0cb") }, uPaint: { value: new Color("#f4f2ed") } },
     // Streets overlap at every junction; not writing depth keeps them from fighting.
     depthWrite: false,
   });
@@ -72,8 +72,8 @@ void main() {
 
   // Car colours: mostly white, grey and black, now and then red or blue.
   float pick = hash(vec2(id * 3.7, lane + 9.0));
-  vec3 paint = pick < 0.35 ? vec3(0.93) : pick < 0.6 ? vec3(0.45, 0.47, 0.5) : pick < 0.8 ? vec3(0.1, 0.1, 0.12)
-             : pick < 0.9 ? vec3(0.62, 0.1, 0.08) : vec3(0.13, 0.25, 0.5);
+  vec3 paint = pick < 0.35 ? vec3(0.93) : pick < 0.6 ? vec3(0.62, 0.63, 0.65) : pick < 0.8 ? vec3(0.3, 0.3, 0.32)
+             : pick < 0.9 ? vec3(0.62, 0.5, 0.47) : vec3(0.5, 0.56, 0.64);
 
   vec3 deck = vec3(0.3, 0.31, 0.33);
   float marking = step(0.47, inLane) * step(0.5, fract(vRoad.x / 12.0)) * step(lanes, 2.6) * step(0.4, lanes);
@@ -147,7 +147,7 @@ void main() {
   #include <colorspace_fragment>
 }
 `,
-    uniforms: { uSteel: { value: new Color("#c4472f") } },
+    uniforms: { uSteel: { value: new Color("#b4705f") } },
     side: DoubleSide,
   });
 }
@@ -172,6 +172,34 @@ void main() {
 }
 `,
     uniforms: { ...shared },
+    depthWrite: false,
+  });
+}
+
+/** Soft warm glow on the ground around one of Salvador's buildings. */
+export function createHaloMaterial(color: string): ShaderMaterial {
+  return new ShaderMaterial({
+    vertexShader: /* glsl */ `
+varying vec2 vUv;
+
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`,
+    fragmentShader: /* glsl */ `
+uniform vec3 uColor;
+varying vec2 vUv;
+
+void main() {
+  float d = length(vUv - 0.5) * 2.0;
+  float a = 0.42 * pow(clamp(1.0 - d, 0.0, 1.0), 1.6);
+  gl_FragColor = vec4(uColor, a);
+  #include <colorspace_fragment>
+}
+`,
+    uniforms: { uColor: { value: new Color(color) } },
+    transparent: true,
     depthWrite: false,
   });
 }
@@ -215,7 +243,7 @@ void main() {
   #include <colorspace_fragment>
 }
 `,
-    uniforms: { ...shared, uWater: { value: new Color("#4f86c4") } },
+    uniforms: { ...shared, uWater: { value: new Color("#8fa9bd") } },
   });
 }
 
