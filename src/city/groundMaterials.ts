@@ -5,7 +5,7 @@ import { Color, ShaderMaterial } from "three";
 import { shared } from "./environment";
 
 /** Half width of the carriageway per road class, in metres. */
-export const STREET_HALF_WIDTH = [8.5, 6, 4];
+export const STREET_HALF_WIDTH = [6.5, 5, 3.5];
 
 const ribbonVertex = /* glsl */ `
 attribute vec3 road;
@@ -28,7 +28,7 @@ uniform float uPlan;
 varying vec3 vRoad;
 
 void main() {
-  vec3 color = uAsphalt * (vRoad.z < 0.5 ? 0.92 : 1.0);
+  vec3 color = uAsphalt;
   float dashes = step(0.5, fract(vRoad.x / 14.0)) * (1.0 - smoothstep(0.03, 0.07, abs(vRoad.y)));
   float fine = smoothstep(0.5, 0.15, fwidth(vRoad.x) / 14.0);
   color = mix(color, uPaint, dashes * fine * step(vRoad.z, 0.5) * 0.8);
@@ -37,7 +37,7 @@ void main() {
   #include <colorspace_fragment>
 }
 `,
-    uniforms: { ...shared, uAsphalt: { value: new Color("#9a9c9f") }, uPaint: { value: new Color("#f2efe8") } },
+    uniforms: { ...shared, uAsphalt: { value: new Color("#bcbcbb") }, uPaint: { value: new Color("#f2efe8") } },
     // Streets overlap at every junction; not writing depth keeps them from fighting.
     depthWrite: false,
   });

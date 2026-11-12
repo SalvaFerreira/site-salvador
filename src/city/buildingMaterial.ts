@@ -31,6 +31,7 @@ const fragmentShader = /* glsl */ `
 uniform vec3 uWalls[5];
 uniform vec3 uRoofA;
 uniform vec3 uRoofB;
+uniform vec3 uRoofC;
 uniform vec3 uRoofFlat;
 uniform vec3 uGlass;
 uniform vec3 uAccents[16];
@@ -70,7 +71,11 @@ void main() {
   if (vRoof > 0.5) {
     // Terracotta tiles; tall or modern buildings get a flat grey roof.
     float pick = hash(vec3(seed * 71.3, 1.7, 4.1));
+    // No two neighbours share a tone: a blend of two terracottas, some roofs
+    // older and browner, each a little lighter or darker.
     vec3 tiles = mix(uRoofA, uRoofB, pick);
+    tiles = mix(tiles, uRoofC, step(hash(vec3(seed * 19.7, 6.3, 8.9)), 0.22));
+    tiles *= mix(0.84, 1.12, hash(vec3(seed * 37.1, 2.9, 5.3)));
     float flatRoof = max(step(34.0, height), step(pick, 0.14));
     color = mix(tiles, uRoofFlat, flatRoof);
     color = mix(color, accent * 0.72, featured * (1.0 - off));
@@ -82,14 +87,14 @@ void main() {
 
     // Each building takes one of five facade colours, white and cream most often.
     float pick = hash(vec3(seed * 53.9, 9.2, 2.3));
-    int which = pick < 0.36 ? 0 : pick < 0.62 ? 1 : pick < 0.78 ? 2 : pick < 0.9 ? 3 : 4;
+    int which = pick < 0.44 ? 0 : pick < 0.76 ? 1 : pick < 0.86 ? 2 : pick < 0.94 ? 3 : 4;
     vec3 facade = uWalls[which];
     facade = mix(facade, accent, featured * (1.0 - off));
     facade = mix(facade, uOff, off);
 
     // Sunlit and shaded sides, a darker band where the wall meets the street.
-    float light = mix(0.7, 1.0, smoothstep(-0.2, 0.6, vSun));
-    light *= mix(0.86, 1.0, smoothstep(0.0, 5.0, up));
+    float light = mix(0.6, 1.0, smoothstep(-0.25, 0.45, vSun));
+    light *= mix(0.8, 1.0, smoothstep(0.0, 6.0, up));
     color = facade * light;
 
     float floors = floor(height / FLOOR_H);
@@ -140,6 +145,7 @@ export function createBuildingMaterial(): ShaderMaterial {
       },
       uRoofA: { value: new Color("#c4603f") },
       uRoofB: { value: new Color("#d97f5a") },
+      uRoofC: { value: new Color("#a5523c") },
       uRoofFlat: { value: new Color("#c6c4be") },
       uGlass: { value: new Color("#56626e") },
       // Colour of each featured building, by its index; set from the place's category.
