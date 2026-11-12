@@ -7,7 +7,7 @@ role: "BSc in Data Science"
 period: "2023 – 2026"
 # Iscte campus, Avenida das Forças Armadas (approximate building).
 coordinates: [-9.15364, 38.74865]
-order: 6
+order: 7
 stack: []
 links:
   - label: "iscte-iul.pt"
