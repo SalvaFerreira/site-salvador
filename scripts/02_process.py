@@ -45,7 +45,7 @@ import geopandas as gpd
 import numpy as np
 from pyproj import Transformer
 from scipy.spatial import cKDTree
-from shapely.geometry import LineString, MultiPolygon, Polygon, box
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon, box
 from shapely.geometry.polygon import orient
 from shapely.ops import linemerge, polygonize, unary_union
 
@@ -329,6 +329,13 @@ def fit_projection():
     return {"x": [float(v) for v in cx], "y": [float(v) for v in cy], "maxErrorM": round(error, 3)}
 
 
+def north_bank(land):
+    """Keep the Lisbon side of the river: the land the scene origin stands on, and anything close to it."""
+    origin = Point(0, 150)
+    main = min(land, key=lambda p: p.distance(origin))
+    return [p for p in land if p.distance(main) < 400]
+
+
 # ---------------------------------------------------------------- bridge
 
 def read_bridge(area):
@@ -339,8 +346,8 @@ def read_bridge(area):
             continue
         tags = el.get("tags", {})
         kind = "railway" if "railway" in tags else "road" if "highway" in tags else "structure"
-        line = LineString(local_coords(pts))
-        if not line.intersects(area):
+        line = LineString(local_coords(pts)).intersection(area)
+        if line.geom_type != "LineString" or line.length < 5:
             continue
         out.append({
             "kind": kind,
@@ -415,6 +422,14 @@ def main():
     b = b[b["area"] >= MIN_AREA_M2].reset_index(drop=True)
     stats["afterMinArea"] = int(len(b))
 
+    print("Land and river")
+    land = north_bank(build_land(area, b))
+    shore = unary_union(land).buffer(60)
+    b = b[b.geometry.representative_point().within(shore)].reset_index(drop=True)
+    stats["onNorthBank"] = int(len(b))
+    # 05_plan.py clips its lines to the same land.
+    (RAW / "_land.wkb").write_bytes(unary_union(land).wkb)
+
     print("Heights")
     b = assign_heights(b)
     stats["heightSource"] = {k: int(v) for k, v in b["height_source"].value_counts().items()}
@@ -458,29 +473,36 @@ def main():
             **info,
         })
 
-    print("Land and river")
-    land = build_land(area, b)
     land_info = write_bin(OUT / "land.bin", land, np.zeros(len(land)), LAND_UNITS_PER_METRE, np.array([0, 0]))
     land_area = sum(p.area for p in land)
 
     print("Streets")
     roads_info = write_roads(OUT / "roads.bin", land)
 
+    # The camera never shows anything beyond "view". Its southern edge is in the
+    # river, just past the bridge's south tower: the south bank is not part of the map.
+    tall = [t for t in BRIDGE_TOWERS if t["height"] >= 150]
+    land_miny = min(p.bounds[1] for p in land)
+    view_miny = min(t["y"] for t in tall) - 250 if tall else land_miny - 1500
+    towers = [t for t in BRIDGE_TOWERS if t["height"] >= 150 or Point(t["x"], t["y"]).within(shore)]
+
     minx, miny, maxx, maxy = area.bounds
+    view = box(minx, view_miny, maxx, maxy)
     manifest = {
         "version": 1,
         "attribution": "Building data (c) OpenStreetMap contributors, ODbL",
         "origin": {"lon": ORIGIN_LON, "lat": ORIGIN_LAT, "crs": CRS_METRIC},
         "bboxLonLat": [WEST, SOUTH, EAST, NORTH],
         "bbox": [round(v, 1) for v in (minx, miny, maxx, maxy)],
+        "view": [round(v, 1) for v in view.bounds],
         "unitsPerMetre": UNITS_PER_METRE,
         "chunks": chunks,
         "land": {"file": "land.bin", "unitsPerMetre": LAND_UNITS_PER_METRE, "origin": [0, 0],
                  "polygons": land_info["buildings"], "vertices": land_info["vertices"], "bytes": land_info["bytes"]},
         "roads": roads_info,
         "projection": fit_projection(),
-        "bridge": read_bridge(area),
-        "bridgeTowers": BRIDGE_TOWERS,
+        "bridge": read_bridge(view),
+        "bridgeTowers": towers,
         "stats": {
             **stats,
             "buildings": sum(c["buildings"] for c in chunks),

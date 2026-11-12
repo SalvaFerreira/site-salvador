@@ -9,4 +9,6 @@ const site = process.env.SITE_URL ?? (host ? `https://${host}` : undefined);
 export default defineConfig({
   site,
   integrations: [react()],
+  // The dev toolbar sits bottom-centre, over the map.
+  devToolbar: { enabled: false },
 });

@@ -14,12 +14,17 @@ const projects = places.map((e) => ({
   slug: e.id,
   path: pathOf(e),
   title: e.data.title,
+  label: e.data.label ?? e.data.title,
+  group: e.data.group,
+  category: e.data.category,
   place: e.data.place,
+  role: e.data.role,
+  period: e.data.period,
   coordinates: e.data.coordinates,
   kind: e.data.kind,
-  layer: e.data.layer,
   lights: e.data.lights,
   stack: e.data.stack,
+  links: e.data.links,
   html: e.rendered?.html ?? "",
 }));
 const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Personal website of ${SITE_NAME}.`;
@@ -37,16 +42,35 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Per
   <body class="city-page">
     <City client:only="react" projects={projects} initialPath={entry ? pathOf(entry) : undefined} />
 
-    <header class="masthead">
+    <header class="topbar">
       <a class="name" href="/">{SITE_NAME}</a>
       <p class="thesis">TODO: texto do Salvador</p>
+      <nav aria-label="Site">
+        <a href="/list">List</a>
+        <button type="button" id="tour-start" hidden>Tour</button>
+        <a href="/contact" id="contact-link">Contact</a>
+      </nav>
     </header>
 
-    <nav class="footline" aria-label="Site">
-      <span>Lisbon <time id="lisbon-time"></time></span>
-      <a href="/list">List</a>
-      <button type="button" id="plan-toggle" aria-pressed="false" hidden>Plan</button>
-    </nav>
+    <div class="controls">
+      <div class="controls-buttons" role="group" aria-label="Map">
+        <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in" hidden>+</button>
+        <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out" hidden>−</button>
+        <button type="button" id="go-home" aria-label="Back to the Baixa" title="Back to the Baixa" hidden>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path d="M2 8.2 8 2.8l6 5.4M4 7.2V13h3v-3.2h2V13h3V7.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></path>
+          </svg>
+        </button>
+        <button type="button" id="plan-toggle" aria-pressed="false" hidden>Plan</button>
+      </div>
+      <span class="clock">Lisbon <time id="lisbon-time"></time></span>
+    </div>
+
+    <ul class="colour-key" aria-label="Colours">
+      <li><span class="place-dot" style="--dot: #f2b632"></span>Work</li>
+      <li><span class="place-dot" style="--dot: #4f86d9"></span>Education</li>
+      <li><span class="place-dot" style="--dot: #55a868"></span>Personal projects</li>
+    </ul>
 
     <p class="legend">
       <span class="key key-rail"></span>Railway

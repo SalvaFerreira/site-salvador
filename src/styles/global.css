@@ -45,9 +45,14 @@ button:focus-visible {
   cursor: grabbing;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 /* Interface chips over the map */
-.masthead,
-.footline,
+.topbar,
+.controls,
+.colour-key,
 .legend,
 .attribution,
 .stats {
@@ -59,57 +64,119 @@ button:focus-visible {
   z-index: 10;
 }
 
-/* Name and thesis, top left */
-.masthead {
+/* Who this is and where to go: name, thesis, List, Tour, Contact */
+.topbar {
   top: 14px;
   left: 14px;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 12px;
-  max-width: calc(100% - 52px);
+  gap: 4px 14px;
+  max-width: calc(100% - 56px);
   padding: 9px 14px;
 }
 
-.masthead .name {
-  font: 17px/1.2 var(--serif);
+.topbar .name {
+  font: 18px/1.2 var(--serif);
   color: var(--paper);
   text-decoration: none;
   white-space: nowrap;
 }
 
-.masthead .thesis {
+.topbar .thesis {
   margin: 0;
   color: var(--muted);
 }
 
-/* Lisbon time, List and Plan, bottom left */
-.footline {
-  left: 14px;
-  bottom: 14px;
+.topbar nav {
   display: flex;
-  align-items: center;
   gap: 14px;
-  padding: 8px 14px;
-  color: var(--muted);
+  padding-left: 14px;
+  border-left: 1px solid #44474e;
 }
 
-.footline a,
-.footline button {
+.topbar nav a,
+.topbar nav button {
   padding: 0;
   border: 0;
   background: none;
   color: var(--paper);
   font: inherit;
+  font-size: 13px;
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
 }
 
-.footline a:hover,
-.footline button:hover,
-.footline button[aria-pressed="true"],
-.masthead .name:hover {
+.topbar nav a:hover,
+.topbar nav button:hover,
+.topbar .name:hover {
   color: var(--accent);
+}
+
+/* Zoom, home, Plan and the time in Lisbon, bottom left */
+.controls {
+  left: 14px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px 6px 6px;
+  color: var(--muted);
+}
+
+.controls-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.controls button {
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #44474e;
+  border-radius: 999px;
+  background: none;
+  color: var(--paper);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.controls #zoom-in,
+.controls #zoom-out {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.controls button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.controls button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--ink);
+}
+
+/* Colour code of the places */
+.colour-key {
+  left: 14px;
+  bottom: 62px;
+  display: flex;
+  gap: 14px;
+  padding: 7px 12px;
+  list-style: none;
+  color: var(--muted);
+}
+
+.colour-key li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .attribution {
@@ -121,8 +188,8 @@ button:focus-visible {
 }
 
 .stats {
-  left: 14px;
-  bottom: 96px;
+  right: 14px;
+  top: 14px;
   padding: 8px 12px;
   font: 11px/1.5 ui-monospace, Consolas, monospace;
   color: var(--muted);
@@ -136,7 +203,7 @@ button:focus-visible {
 
 .plan-on .legend {
   left: 14px;
-  bottom: 56px;
+  bottom: 102px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -163,28 +230,34 @@ button:focus-visible {
   background: #e39a1c;
 }
 
-/* Places: a label pinned above each one */
+/* Places: a short label above each one, placed by the scene every frame */
+.labels {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .place-label {
   position: absolute;
+  top: 0;
   left: 0;
-  bottom: 9px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px 6px 9px;
+  padding: 7px 13px 7px 10px;
   border: 0;
   border-radius: 999px;
   background: var(--chip);
   color: var(--paper);
-  font: inherit;
-  text-align: left;
+  font: 14px/1.2 var(--serif);
   white-space: nowrap;
   cursor: pointer;
+  pointer-events: auto;
+  visibility: hidden;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
-  transform: translateX(-50%);
-  transition:
-    transform 0.16s ease,
-    background-color 0.16s ease;
+  transition: background-color 0.16s ease;
 }
 
 /* the pointer down to the place */
@@ -202,8 +275,7 @@ button:focus-visible {
 
 .place-label:hover,
 .place-label:focus-visible {
-  background: #101114;
-  transform: translateX(-50%) translateY(-3px);
+  background: #0d0e10;
 }
 
 .place-dot {
@@ -211,33 +283,33 @@ button:focus-visible {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(242, 182, 50, 0.25);
+  background: var(--dot, var(--accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot, var(--accent)) 28%, transparent);
 }
 
+/* "Lights off": the dot is only a ring */
 .is-off .place-dot {
-  background: #6b6e75;
-  box-shadow: 0 0 0 3px rgba(107, 110, 117, 0.3);
+  background: none;
+  box-shadow: inset 0 0 0 2px var(--dot, var(--accent));
 }
 
-.is-plan .place-dot {
-  background: #8fc46f;
-  box-shadow: 0 0 0 3px rgba(143, 196, 111, 0.3);
+/* A place that is off screen: its label waits at the edge and points the way */
+.place-arrow {
+  display: none;
 }
 
-.place-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
+.is-away.place-label::after {
+  display: none;
 }
 
-.place-title {
-  font: 14px/1.2 var(--serif);
-}
-
-.place-where {
-  font-size: 10.5px;
-  color: var(--muted);
+.is-away .place-arrow {
+  display: block;
+  width: 0;
+  height: 0;
+  border: 4px solid transparent;
+  border-left: 7px solid var(--muted);
+  border-right: 0;
+  transform: rotate(var(--toward, 0rad));
 }
 
 /* Project panel */
@@ -258,8 +330,44 @@ button:focus-visible {
   box-shadow: -6px 0 24px rgba(0, 0, 0, 0.25);
 }
 
+.panel-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+  font-size: 12px;
+}
+
+.panel-tour {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.panel-tour button {
+  padding: 4px 10px;
+  border: 1px solid #44474e;
+  border-radius: 999px;
+  background: none;
+  color: var(--paper);
+  font: inherit;
+  cursor: pointer;
+}
+
+.panel-tour button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.panel-tour button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .panel-close {
-  float: right;
+  margin-left: auto;
   padding: 0;
   border: 0;
   background: none;
@@ -274,9 +382,57 @@ button:focus-visible {
 }
 
 .panel-place {
-  margin: 0 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.panel-project {
+  margin-top: 6px;
+}
+
+.panel-project + .panel-project {
+  margin-top: 30px;
+  padding-top: 24px;
+  border-top: 1px solid #2c2f35;
+}
+
+.panel-project h2 {
+  margin: 0 0 6px;
+  font: 400 19px/1.25 var(--serif);
+  color: var(--paper);
+}
+
+.panel-role {
+  margin: 0;
+  font-style: italic;
+}
+
+.panel-period {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.panel-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 18px 0 0;
+}
+
+.panel-links a {
+  color: var(--accent);
+}
+
+.panel-body ul {
+  padding-left: 1.2em;
+}
+
+.panel-body li + li {
+  margin-top: 0.5em;
 }
 
 .panel h1 {
@@ -294,7 +450,7 @@ button:focus-visible {
 
 .panel-body {
   max-width: 65ch;
-  margin-top: 24px;
+  margin-top: 14px;
 }
 
 .panel-body h2,
@@ -322,10 +478,11 @@ button:focus-visible {
 }
 
 /* ?shot: nothing but the city */
-.shot .masthead,
-.shot .footline,
+.shot .topbar,
+.shot .controls,
+.shot .colour-key,
 .shot .attribution,
-.shot .place-label,
+.shot .labels,
 .shot .panel,
 .shot .legend,
 .shot .stats {
@@ -398,12 +555,21 @@ button:focus-visible {
     box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.25);
   }
 
-  .masthead {
-    flex-direction: column;
-    gap: 2px;
+  .topbar nav {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .colour-key {
+    display: none;
   }
 
   .attribution {
     max-width: 45%;
   }
+}
+
+.list-role {
+  margin: 0 0 8px;
+  font-style: italic;
 }

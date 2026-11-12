@@ -20,6 +20,7 @@ import sys
 import geopandas as gpd
 import numpy as np
 import requests
+import shapely
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import linemerge, unary_union
 
@@ -128,13 +129,17 @@ def main():
             if geom.geom_type == "LineString" and geom.length > 5:
                 lines.append(geom.simplify(1.5))
                 classes.append(cls)
+    # Metro and tram lines only where the map has land (the south bank is not shown).
+    land_file = RAW / "_land.wkb"
+    shore = shapely.from_wkb(land_file.read_bytes()).buffer(40) if land_file.exists() else area
+
     trams = []
     for el in P.load("transit"):
         pts = el.get("geometry") or []
         tags = el.get("tags", {})
         if len(pts) < 2 or tags.get("service") in ("yard", "siding", "spur"):
             continue
-        line = LineString(P.local_coords(pts)).intersection(area)
+        line = LineString(P.local_coords(pts)).intersection(shore)
         if line.geom_type != "LineString" or line.length < 5:
             continue
         is_tram = tags["railway"] == "tram"

@@ -1,10 +1,11 @@
 ---
 title: "Now"
+label: "Now"
 place: "Ponte 25 de Abril"
 kind: "now"
-# Middle of the bridge.
-coordinates: [-9.1772, 38.6895]
-order: 6
+# North tower of the bridge.
+coordinates: [-9.1781, 38.6952]
+order: 8
 stack: []
 ---
 

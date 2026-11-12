@@ -34,8 +34,18 @@ const sections = await Promise.all(
             <h2>
               <a href={pathOf(entry)}>{entry.data.title}</a>
             </h2>
+            {(entry.data.role || entry.data.period) && (
+              <p class="list-role">{[entry.data.role, entry.data.period].filter(Boolean).join(" · ")}</p>
+            )}
             {entry.data.stack.length > 0 && <p class="list-place">{entry.data.stack.join(" · ")}</p>}
             <Content />
+            {entry.data.links.length > 0 && (
+              <p class="list-links">
+                {entry.data.links.map((link) => (
+                  <a href={link.url}>{link.label}</a>
+                ))}
+              </p>
+            )}
           </section>
         ))
       }

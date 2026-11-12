@@ -21,6 +21,8 @@ export interface Manifest {
   attribution: string;
   origin: { lon: number; lat: number };
   bbox: [number, number, number, number];
+  /** The part of the map the camera may show (the south bank is left out). */
+  view: [number, number, number, number];
   unitsPerMetre: number;
   chunks: ChunkInfo[];
   land: { file: string; unitsPerMetre: number; origin: [number, number] };

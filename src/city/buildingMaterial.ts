@@ -3,6 +3,9 @@
 import { Color, ShaderMaterial } from "three";
 import { shared } from "./environment";
 
+/** How many featured buildings can have a colour of their own. */
+export const ACCENT_SLOTS = 16;
+
 const vertexShader = /* glsl */ `
 attribute vec4 wall;
 attribute float seed;
@@ -30,8 +33,7 @@ uniform vec3 uRoofA;
 uniform vec3 uRoofB;
 uniform vec3 uRoofFlat;
 uniform vec3 uGlass;
-uniform vec3 uAccent;
-uniform vec3 uAccentRoof;
+uniform vec3 uAccents[16];
 uniform vec3 uOff;
 uniform float uHover;
 uniform float uPlan;
@@ -60,6 +62,8 @@ void main() {
   float hovered = featured * (1.0 - step(0.5, abs(tag - uHover)));
   float seed = fract(vSeed);
   float height = vWall.w;
+  // Each featured building has its own colour (its category's).
+  vec3 accent = uAccents[int(clamp(tag - 1.0, 0.0, 15.0))];
 
   vec3 color;
 
@@ -69,7 +73,7 @@ void main() {
     vec3 tiles = mix(uRoofA, uRoofB, pick);
     float flatRoof = max(step(34.0, height), step(pick, 0.14));
     color = mix(tiles, uRoofFlat, flatRoof);
-    color = mix(color, uAccentRoof, featured * (1.0 - off));
+    color = mix(color, accent * 0.72, featured * (1.0 - off));
     color = mix(color, uOff * 1.25, off);
   } else {
     float along = vWall.x;
@@ -80,7 +84,7 @@ void main() {
     float pick = hash(vec3(seed * 53.9, 9.2, 2.3));
     int which = pick < 0.36 ? 0 : pick < 0.62 ? 1 : pick < 0.78 ? 2 : pick < 0.9 ? 3 : 4;
     vec3 facade = uWalls[which];
-    facade = mix(facade, uAccent, featured * (1.0 - off));
+    facade = mix(facade, accent, featured * (1.0 - off));
     facade = mix(facade, uOff, off);
 
     // Sunlit and shaded sides, a darker band where the wall meets the street.
@@ -138,9 +142,8 @@ export function createBuildingMaterial(): ShaderMaterial {
       uRoofB: { value: new Color("#d97f5a") },
       uRoofFlat: { value: new Color("#c6c4be") },
       uGlass: { value: new Color("#56626e") },
-      // Featured buildings: the yellow of Praça do Comércio.
-      uAccent: { value: new Color("#f2b632") },
-      uAccentRoof: { value: new Color("#a8452c") },
+      // Colour of each featured building, by its index; set from the place's category.
+      uAccents: { value: Array.from({ length: ACCENT_SLOTS }, () => new Color("#f2b632")) },
       // "Lights off" building.
       uOff: { value: new Color("#34363b") },
       uHover: { value: -1 },
