@@ -89,6 +89,73 @@ void main() {
   });
 }
 
+/** Railway track: a bed of ballast, sleepers across it and two rails. Class 1 (yards) is paler. */
+export function createTrackMaterial(): ShaderMaterial {
+  return new ShaderMaterial({
+    vertexShader: ribbonVertex,
+    fragmentShader: /* glsl */ `
+uniform float uPlan;
+varying vec3 vRoad;
+
+void main() {
+  float across = abs(vRoad.y);
+  vec3 ballast = mix(vec3(0.52, 0.48, 0.43), vec3(0.6, 0.57, 0.52), step(0.5, vRoad.z));
+  // Sleepers every 2.4 m, only where they are large enough to be seen.
+  float fine = 1.0 - smoothstep(0.08, 0.3, fwidth(vRoad.x) / 2.4);
+  float sleeper = step(0.55, fract(vRoad.x / 2.4)) * step(across, 0.62);
+  vec3 color = mix(ballast, vec3(0.36, 0.3, 0.25), sleeper * fine * 0.8);
+  // Two rails.
+  float w = max(fwidth(vRoad.y), 0.03);
+  float rail = 1.0 - smoothstep(0.05, 0.05 + w, abs(across - 0.4));
+  color = mix(color, vec3(0.2, 0.2, 0.22), rail * 0.9);
+  // Soft edge, so the bed sits in the ground instead of looking like a strip laid on it.
+  float alpha = 1.0 - smoothstep(0.82, 1.0, across);
+  color = mix(color, vec3(0.86), uPlan * 0.5);
+  gl_FragColor = vec4(color, alpha);
+  #include <colorspace_fragment>
+}
+`,
+    uniforms: { ...shared },
+    transparent: true,
+    depthWrite: false,
+  });
+}
+
+/** Side of the bridge truss: chords top and bottom, diagonals between, open in between. */
+export function createTrussMaterial(): ShaderMaterial {
+  return new ShaderMaterial({
+    vertexShader: /* glsl */ `
+varying vec2 vUv;
+
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`,
+    fragmentShader: /* glsl */ `
+uniform vec3 uSteel;
+varying vec2 vUv;
+
+const float BAY = 11.0; // metres between uprights
+
+void main() {
+  float v = vUv.y;
+  float bay = fract(vUv.x / BAY);
+  float chord = step(v, 0.12) + step(0.88, v);
+  float upright = step(bay, 0.07);
+  // A zigzag of diagonals from chord to chord.
+  float zig = abs(fract(vUv.x / (2.0 * BAY)) * 2.0 - 1.0);
+  float diagonal = 1.0 - step(0.06, abs(zig - v));
+  if (chord + upright + diagonal < 0.5) discard;
+  gl_FragColor = vec4(uSteel * (0.82 + 0.18 * v), 1.0);
+  #include <colorspace_fragment>
+}
+`,
+    uniforms: { uSteel: { value: new Color("#c4472f") } },
+    side: DoubleSide,
+  });
+}
+
 /** Airport: class 0 is a runway (dark, white markings), class 1 a taxiway (grey, yellow line). */
 export function createRunwayMaterial(): ShaderMaterial {
   return new ShaderMaterial({

@@ -2,7 +2,7 @@
 // coming in to land. All of it keeps moving for every visitor; reduced motion
 // only changes how the camera travels (see City.tsx).
 import { useFrame } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   BoxGeometry,
   BufferAttribute,
@@ -18,8 +18,8 @@ import {
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { shared } from "../city/environment";
-import { createRunwayMaterial, createShadowMaterial } from "../city/groundMaterials";
-import { buildRibbons, type Polyline } from "../city/lines";
+import { createRunwayMaterial, createShadowMaterial, createTrackMaterial, createTrussMaterial } from "../city/groundMaterials";
+import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { SHADOW_PER_M } from "../city/loadCity";
 import { COVER, randomFrom, scatterOver, type CoverData } from "./Extras";
 
@@ -28,15 +28,18 @@ const WATER_Y = -2;
 
 // ---------------------------------------------------------------- paths
 
-/** A line to travel along: points in map metres (x east, y north), optionally with a height. */
+/**
+ * A line to travel along: points in map metres (x east, y north), optionally
+ * followed by a height and by a flag that is 1 where the line is out of sight (a tunnel).
+ */
 interface Path {
   points: ArrayLike<number>;
-  stride: 2 | 3;
+  stride: number;
   lengths: Float32Array;
   total: number;
 }
 
-function toPath(points: ArrayLike<number>, stride: 2 | 3): Path {
+function toPath(points: ArrayLike<number>, stride: number): Path {
   const n = points.length / stride;
   const lengths = new Float32Array(n);
   for (let i = 1; i < n; i++) {
@@ -47,7 +50,7 @@ function toPath(points: ArrayLike<number>, stride: 2 | 3): Path {
   return { points, stride, lengths, total: lengths[n - 1] };
 }
 
-const flatPath = (points: number[][]) => toPath(points.flat(), (points[0]?.length === 3 ? 3 : 2) as 2 | 3);
+const flatPath = (points: number[][]) => toPath(points.flat(), points[0]?.length ?? 2);
 
 interface Spot {
   x: number;
@@ -55,6 +58,8 @@ interface Spot {
   height: number;
   /** Direction of travel, as a rotation about the vertical axis. */
   heading: number;
+  /** True in a tunnel. */
+  hidden?: boolean;
 }
 
 /** Where a path is after `distance` metres. Writes into `out`. */
@@ -71,7 +76,8 @@ function along(path: Path, distance: number, out: Spot): Spot {
   const by = points[k * stride + 1];
   out.x = ax + (bx - ax) * t;
   out.y = ay + (by - ay) * t;
-  out.height = stride === 3 ? points[(k - 1) * 3 + 2] + (points[k * 3 + 2] - points[(k - 1) * 3 + 2]) * t : 0;
+  out.height = stride >= 3 ? points[(k - 1) * stride + 2] + (points[k * stride + 2] - points[(k - 1) * stride + 2]) * t : 0;
+  out.hidden = stride >= 4 && points[(t < 0.5 ? k - 1 : k) * stride + 3] > 0.5;
   out.heading = Math.atan2(by - ay, bx - ax);
   return out;
 }
@@ -305,36 +311,148 @@ export function Trams({ routes }: { routes: number[][][] }) {
 // ---------------------------------------------------------------- trains
 
 const TRAIN_SPEED = 21; // m/s
-const CARRIAGES = 4;
-const CARRIAGE_GAP_M = 25;
+const CARRIAGES = 5;
+/** Distance between the centres of two carriages: they are coupled, almost touching. */
+const CARRIAGE_GAP_M = 30;
+/** Livery of the lower body, by line. */
 const TRAIN_COLORS: Record<string, string> = {
   "Linha de Cascais": "#f1c330",
+  "Linha de Sintra": "#f1c330",
+  "Linha de Cintura": "#f1c330",
   "Linha do Sul": "#3a6db5",
+  "Linha do Norte": "#5f8f4e",
 };
 
-/** A railway carriage. The white body takes the colour of its line. */
+/** The truss of the bridge: where it starts (track height), how far from the track, how tall. */
+const TRUSS_FROM_M = 55;
+const TRUSS_HALF_WIDTH = 11;
+const TRUSS_HEIGHT = 8.5;
+
+/** Half width of the ballast bed of one track, in metres. */
+const TRACK_HALF_WIDTH = [2.7, 2.4];
+/** Top of the ballast above the ground. */
+const TRACK_Y = 0.45;
+
+/**
+ * The railway itself: every track above ground, with ballast, sleepers and
+ * rails, plus the stretch that climbs onto the bridge's rail deck.
+ */
+export function Tracks({ file, unitsPerMetre, routes }: { file: string; unitsPerMetre: number; routes: TrainRoute[] }) {
+  const material = useMemo(createTrackMaterial, []);
+  const [ground, setGround] = useState<BufferGeometry | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadLines(file, unitsPerMetre).then((lines) => !cancelled && setGround(buildRibbons(lines, TRACK_HALF_WIDTH, TRACK_Y)));
+    return () => {
+      cancelled = true;
+    };
+  }, [file, unitsPerMetre]);
+
+  // On the bridge the track is taken from the train's own route, which carries the heights.
+  const raised = useMemo(() => {
+    const lines: Polyline[] = [];
+    for (const route of routes) {
+      let run: number[][] = [];
+      const flush = () => {
+        if (run.length > 1) lines.push({ points: run.flatMap((p) => [p[0], p[1]]), heights: run.map((p) => p[2]), cls: 0 });
+        run = [];
+      };
+      for (const point of route.points) {
+        if (point[2] > 0.3) run.push(point);
+        else flush();
+      }
+      flush();
+    }
+    return lines.length ? buildRibbons(lines, [3.4], TRACK_Y) : null;
+  }, [routes]);
+
+  // The bridge carries the railway inside a steel truss under the road: two
+  // upright lattices, one on each side of the raised track.
+  const truss = useMemo(() => {
+    const position: number[] = [];
+    const uv: number[] = [];
+    for (const route of routes) {
+      let along = 0;
+      for (let i = 1; i < route.points.length; i++) {
+        const [ax, ay, ah] = route.points[i - 1];
+        const [bx, by, bh] = route.points[i];
+        const len = Math.hypot(bx - ax, by - ay) || 1;
+        // Only where the track is at full deck height, not on the ramps.
+        if (ah > TRUSS_FROM_M && bh > TRUSS_FROM_M) {
+          const nx = (-(by - ay) / len) * TRUSS_HALF_WIDTH;
+          const ny = ((bx - ax) / len) * TRUSS_HALF_WIDTH;
+          for (const side of [-1, 1]) {
+            const corners = [
+              [ax + nx * side, ah, ay + ny * side, along, 0],
+              [bx + nx * side, bh, by + ny * side, along + len, 0],
+              [bx + nx * side, bh + TRUSS_HEIGHT, by + ny * side, along + len, 1],
+              [ax + nx * side, ah + TRUSS_HEIGHT, ay + ny * side, along, 1],
+            ];
+            for (const k of [0, 1, 2, 0, 2, 3]) {
+              position.push(corners[k][0], corners[k][1], -corners[k][2]);
+              uv.push(corners[k][3], corners[k][4]);
+            }
+          }
+        }
+        along += len;
+      }
+    }
+    if (!position.length) return null;
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new BufferAttribute(new Float32Array(position), 3));
+    geometry.setAttribute("uv", new BufferAttribute(new Float32Array(uv), 2));
+    return geometry;
+  }, [routes]);
+  const trussMaterial = useMemo(createTrussMaterial, []);
+
+  return (
+    <>
+      {/* Drawn after the streets, so the track crosses over them. */}
+      {ground && <mesh geometry={ground} material={material} renderOrder={1.5} raycast={noRaycast} frustumCulled={false} />}
+      {raised && <mesh geometry={raised} material={material} renderOrder={1.5} raycast={noRaycast} frustumCulled={false} />}
+      {truss && <mesh geometry={truss} material={trussMaterial} raycast={noRaycast} frustumCulled={false} />}
+    </>
+  );
+}
+
+const TRAIN_SCALE = 1.25;
+
+/**
+ * A railway carriage, nose along +x, wheels on the rail. White parts take the
+ * colour of the line; underframe, windows and roof gear stay dark.
+ */
 function createCarriageGeometry(): BufferGeometry {
   return mergeGeometries([
-    box(23, 1.9, 3.1, 0, 1.5, 0, "#ffffff"),
-    box(21.5, 1.1, 3.0, 0, 3.0, 0, "#39424d"),
-    box(23, 0.7, 3.1, 0, 3.9, 0, "#ffffff"),
-    box(21, 0.4, 2.3, 0, 4.45, 0, "#8d9299"),
+    box(4.5, 0.9, 2.2, 7, 0.55, 0, "#26282c"), // bogies
+    box(4.5, 0.9, 2.2, -7, 0.55, 0, "#26282c"),
+    box(23.4, 0.5, 2.9, 0, 1.2, 0, "#3a3d42"), // underframe
+    box(23.4, 1.1, 3.0, 0, 2.0, 0, "#ffffff"), // lower body, in the line's colour
+    box(22.6, 1.0, 3.02, 0, 3.05, 0, "#2f3740"), // windows
+    box(23.4, 0.45, 3.0, 0, 3.78, 0, "#f3f1ea"), // band over the windows
+    box(22.8, 0.4, 2.5, 0, 4.2, 0, "#9a9ea5"), // roof
+    box(3.2, 0.35, 1.4, -4.5, 4.55, 0, "#7b7f86"), // roof equipment
+    box(2.2, 0.35, 1.4, 5.5, 4.55, 0, "#7b7f86"),
   ]);
 }
 
 export interface TrainRoute {
   name: string;
-  /** [x, y, height] in map metres. */
+  /** [x, y, height, hidden] in map metres; hidden is 1 in tunnels. */
   points: number[][];
 }
 
-/** Trains on the real railway lines, two per line, including the one that crosses the bridge. */
+/**
+ * Trains on the real tracks, two per line. They climb onto the bridge's rail
+ * deck, and are out of sight while in a tunnel.
+ */
 export function Trains({ routes }: { routes: TrainRoute[] }) {
   const mesh = useRef<InstancedMesh>(null);
   const paths = useMemo(() => routes.map((r) => flatPath(r.points)), [routes]);
   const count = routes.length * 2 * CARRIAGES;
   const geometry = useMemo(createCarriageGeometry, []);
   const dummy = useMemo(() => new Object3D(), []);
+  const hidden = useMemo(() => new Matrix4().makeScale(0, 0, 0), []);
   const spot = useMemo<Spot>(() => ({ x: 0, y: 0, height: 0, heading: 0 }), []);
 
   useLayoutEffect(() => {
@@ -357,10 +475,11 @@ export function Trains({ routes }: { routes: TrainRoute[] }) {
         const { distance, returning } = shuttle(path.total, TRAIN_SPEED, shared.uTime.value + offset + 30, 15);
         for (let c = 0; c < CARRIAGES; c++) {
           along(path, distance + (returning ? c : -c) * CARRIAGE_GAP_M, spot);
-          dummy.position.set(spot.x, spot.height, -spot.y);
+          dummy.position.set(spot.x, spot.height + TRACK_Y, -spot.y);
           dummy.rotation.y = spot.heading;
+          dummy.scale.setScalar(TRAIN_SCALE);
           dummy.updateMatrix();
-          m.setMatrixAt((r * 2 + train) * CARRIAGES + c, dummy.matrix);
+          m.setMatrixAt((r * 2 + train) * CARRIAGES + c, spot.hidden ? hidden : dummy.matrix);
         }
       }
     });

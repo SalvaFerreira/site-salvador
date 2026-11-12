@@ -40,6 +40,8 @@ export interface PlanData {
   rail: { file: string; unitsPerMetre: number };
   /** Routes of what moves in the scene, as lists of [x, y] points in map metres. */
   tramRoutes: number[][][];
+  /** Railway tracks above ground, drawn in the city. */
+  tracks: { file: string; unitsPerMetre: number };
   trainRoutes: { name: string; points: number[][] }[];
   ferryRoutes: number[][][];
   sailingLanes: number[][][];

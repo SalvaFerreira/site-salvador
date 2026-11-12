@@ -5,6 +5,8 @@ import { BufferAttribute, BufferGeometry } from "three";
 export interface Polyline {
   points: ArrayLike<number>; // x0, y0, x1, y1, ...
   cls: number;
+  /** Height of each point above the ribbon's base height, for a line that climbs (a bridge ramp). */
+  heights?: ArrayLike<number>;
 }
 
 /** Decodes an LXR1 file (layout in scripts/02_process.py). */
@@ -50,7 +52,7 @@ export function buildRibbons(lines: Polyline[], halfWidths: number[], height: nu
 
   let q = 0;
   let ix = 0;
-  for (const { points, cls } of lines) {
+  for (const { points, cls, heights } of lines) {
     const half = halfWidths[cls] ?? halfWidths[halfWidths.length - 1];
     let along = 0;
     for (let i = 1; i < points.length / 2; i++) {
@@ -67,7 +69,7 @@ export function buildRibbons(lines: Polyline[], halfWidths: number[], height: nu
         const end = k === 1 || k === 2;
         const side = k >= 2 ? 1 : -1;
         position[q * 3] = (end ? x + ux * ext : px - ux * ext) - uy * half * side;
-        position[q * 3 + 1] = height;
+        position[q * 3 + 1] = height + (heights ? heights[end ? i : i - 1] : 0);
         position[q * 3 + 2] = -((end ? y + uy * ext : py - uy * ext) + ux * half * side);
         road[q * 3] = end ? along + len + ext : along - ext;
         road[q * 3 + 1] = side;

@@ -136,6 +136,9 @@ def main():
         + ");" + NL + "out body geom;",
     )
 
+    print("Railway tracks")
+    fetch("rails", 'way["railway"="rail"](' + area + ");" + NL + "out tags geom;")
+
     print("Tram and metro lines")
     fetch("transit", f'way["railway"~"^(tram|subway)$"]({FULL});\nout tags geom;')
 

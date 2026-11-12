@@ -9,7 +9,7 @@ import { createRiverMaterial, createShadowMaterial, createStreetMaterial, STREET
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type Featured, type Manifest } from "../city/loadCity";
 import { Bridge, BRIDGE_DECK_M, loadCover, loadPlan, Parks, PlanLayer, type CoverData, type PlanData } from "./Extras";
-import { Airport, Boats, Cars, Plane, Trains, Trams } from "./Life";
+import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
 import Panel from "./Panel";
 
 export type Category = "job" | "education" | "personal";
@@ -546,6 +546,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {roads && <Cars roads={roads.lines} />}
       {plan && <PlanLayer plan={plan} visible={planOn} />}
       {plan && <Trams routes={plan.tramRoutes} />}
+      {plan && <Tracks file={plan.tracks.file} unitsPerMetre={plan.tracks.unitsPerMetre} routes={plan.trainRoutes} />}
       {plan && <Trains routes={plan.trainRoutes} />}
       {plan && <Boats ferries={plan.ferryRoutes} sails={plan.sailingLanes} />}
       {manifest && <Bridge manifest={manifest} />}
