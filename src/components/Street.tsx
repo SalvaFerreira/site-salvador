@@ -447,3 +447,139 @@ export function Buses({ lines }: { lines: Polyline[] }) {
     </instancedMesh>
   );
 }
+
+// ---------------------------------------------------------------- people
+
+/** Pixels per metre below which people are not drawn: they would be a dot of a pixel. */
+const PEOPLE_ZOOM = 1.8;
+/** Size of the cells streets are filed in, and how far apart walkers are on a street. */
+const GRID_M = 250;
+const WALKER_EVERY_M = 32;
+const MAX_PEOPLE = 4000;
+const WALK_SPEED = 1.3; // m/s
+const PEOPLE_COLORS = ["#3d4450", "#6b6e75", "#efece4", "#8a6f5c", "#4f5f74", "#a9a39a", "#2b2d31", "#b38a7a"].map((c) => new Color(c));
+
+/** A person, a little larger than life (like the cars): body, legs, head. */
+function createPersonGeometry(): BufferGeometry {
+  const tint = (g: BufferGeometry, color: string | null) => {
+    const n = g.getAttribute("position").count;
+    const colors = new Float32Array(n * 3);
+    // White parts take the colour of each person's clothes.
+    const c = new Color(color ?? "#ffffff");
+    for (let i = 0; i < n; i++) colors.set([c.r, c.g, c.b], i * 3);
+    g.setAttribute("color", new BufferAttribute(colors, 3));
+    return g;
+  };
+  return mergeGeometries([
+    tint(new BoxGeometry(0.75, 1.1, 0.55).translate(0, 1.45, 0).toNonIndexed(), null),
+    tint(new BoxGeometry(0.6, 0.95, 0.45).translate(0, 0.48, 0).toNonIndexed(), "#2f3238"),
+    tint(new BoxGeometry(0.5, 0.5, 0.5).translate(0, 2.3, 0).toNonIndexed(), "#d8b8a0"),
+  ]).scale(1.4, 1.4, 1.4);
+}
+
+/**
+ * People walking along the pavements, and crossing at zebra crossings while
+ * the crossing is busy (the moments cars stop for, see crossingBusy). Only
+ * close up, and only the ones on screen.
+ */
+export function People({ roads, crossings }: { roads: Polyline[]; crossings: StreetData["crossings"] }) {
+  const mesh = useRef<InstancedMesh>(null);
+  const geometry = useMemo(createPersonGeometry, []);
+  // Streets with pavements, filed by area so the ones on screen are found quickly.
+  const streets = useMemo(() => {
+    const list = roads.filter((r) => r.cls >= 1).map((r) => ({ line: toLine(r.points), cls: r.cls }));
+    const grid = new Map<number, number[]>();
+    list.forEach((s, i) => {
+      const n = s.line.lengths.length;
+      const x = (s.line.points[0] + s.line.points[(n - 1) * 2]) / 2;
+      const y = (s.line.points[1] + s.line.points[(n - 1) * 2 + 1]) / 2;
+      const k = Math.floor(x / GRID_M) * 100003 + Math.floor(y / GRID_M);
+      const cell = grid.get(k);
+      if (cell) cell.push(i);
+      else grid.set(k, [i]);
+    });
+    return { list, grid };
+  }, [roads]);
+  const dummy = useMemo(() => new Object3D(), []);
+  const view = useViewBox();
+
+  useFrame(() => {
+    const m = mesh.current;
+    if (!m) return;
+    const { box, zoom } = view();
+    if (zoom < PEOPLE_ZOOM) {
+      m.count = 0;
+      return;
+    }
+    const time = shared.uTime.value;
+    let shown = 0;
+    const place = (x: number, y: number, heading: number, color: Color) => {
+      if (shown >= MAX_PEOPLE || x < box[0] || x > box[2] || y < box[1] || y > box[3]) return;
+      dummy.position.set(x, 0.45, -y);
+      dummy.rotation.y = heading;
+      dummy.updateMatrix();
+      m.setMatrixAt(shown, dummy.matrix);
+      m.setColorAt(shown, color);
+      shown++;
+    };
+
+    // On the pavements: each street on screen has a walker every WALKER_EVERY_M or
+    // so, each going up and down it at its own pace, on either side.
+    for (let gx = Math.floor((box[0] - 200) / GRID_M); gx <= Math.floor((box[2] + 200) / GRID_M); gx++) {
+      for (let gy = Math.floor((box[1] - 200) / GRID_M); gy <= Math.floor((box[3] + 200) / GRID_M); gy++) {
+        for (const index of streets.grid.get(gx * 100003 + gy) ?? []) {
+          const { line, cls } = streets.list[index];
+          const { points, lengths, total } = line;
+          const count = Math.max(1, Math.round(total / WALKER_EVERY_M));
+          for (let j = 0; j < count; j++) {
+            const r1 = hash(index, j);
+            const r2 = hash(j + 0.5, index);
+            const speed = WALK_SPEED * (0.75 + 0.5 * r2);
+            const run = (r1 * 2 * total + time * speed) % (2 * total);
+            const back = run >= total;
+            const at = back ? 2 * total - run : run;
+            let k = 1;
+            while (k < lengths.length - 1 && lengths[k] < at) k++;
+            const t = (at - lengths[k - 1]) / (lengths[k] - lengths[k - 1] || 1);
+            const ax = points[(k - 1) * 2];
+            const ay = points[(k - 1) * 2 + 1];
+            const bx = points[k * 2];
+            const by = points[k * 2 + 1];
+            const len = Math.hypot(bx - ax, by - ay) || 1;
+            // Right-hand side of the way they are going, on the pavement.
+            const side = (back ? -1 : 1) * (cls === 1 ? 4.4 : 3.1) * (r2 < 0.5 ? 1 : -1);
+            const nx = (by - ay) / len;
+            const ny = -(bx - ax) / len;
+            const heading = Math.atan2(by - ay, bx - ax) + (back ? Math.PI : 0);
+            place(ax + (bx - ax) * t + nx * side, ay + (by - ay) * t + ny * side, heading, PEOPLE_COLORS[Math.floor(r1 * 97) % PEOPLE_COLORS.length]);
+          }
+        }
+      }
+    }
+
+    // On the zebra crossings, while they are busy: one or two people going over.
+    for (let i = 0; i < crossings.x.length; i++) {
+      const x = crossings.x[i];
+      const y = crossings.y[i];
+      if (x < box[0] || x > box[2] || y < box[1] || y > box[3] || !crossingBusy(i, time)) continue;
+      const f = ((time + i * 3.7) % CROSSING_SLOT_S) / CROSSING_SLOT_S;
+      const a = crossings.angle[i];
+      // Across the street is a quarter turn from along it.
+      const cx = -Math.sin(a);
+      const cy = Math.cos(a);
+      const s = -5.5 + 11 * f;
+      place(x + cx * s + Math.cos(a) * 0.8, y + cy * s + Math.sin(a) * 0.8, a + Math.PI / 2, PEOPLE_COLORS[i % PEOPLE_COLORS.length]);
+      if (i % 2) place(x - cx * s - Math.cos(a) * 0.8, y - cy * s - Math.sin(a) * 0.8, a - Math.PI / 2, PEOPLE_COLORS[(i + 3) % PEOPLE_COLORS.length]);
+    }
+
+    m.count = shown;
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={mesh} args={[geometry, undefined, MAX_PEOPLE]} raycast={noRaycast} frustumCulled={false}>
+      <meshLambertMaterial vertexColors />
+    </instancedMesh>
+  );
+}

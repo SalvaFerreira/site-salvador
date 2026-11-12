@@ -11,7 +11,7 @@ import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type F
 import { Bridge, loadCover, loadPlan, Parks, type CoverData, type PlanData } from "./Extras";
 import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
 import Panel from "./Panel";
-import { Buses, Calcada, Crossings, loadStreet, TrafficLights, VascoDaGama, type StreetData } from "./Street";
+import { Buses, Calcada, Crossings, loadStreet, People, TrafficLights, VascoDaGama, type StreetData } from "./Street";
 
 export type Category = "job" | "education" | "personal";
 
@@ -672,6 +672,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {street && <Crossings data={street.crossings} />}
       {street && <TrafficLights data={street.lights} />}
       {street && <Buses lines={street.bus} />}
+      {street && roads && <People roads={roads.lines} crossings={street.crossings} />}
       {street && <VascoDaGama bridge={street.bridge} />}
       {plan && <Trams routes={plan.tramRoutes} />}
       {plan && <Tracks file={plan.tracks.file} unitsPerMetre={plan.tracks.unitsPerMetre} routes={plan.trainRoutes} />}
