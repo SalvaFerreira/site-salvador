@@ -94,6 +94,12 @@ def main():
         f'relation["boundary"="administrative"]["admin_level"="8"]({FULL});\nout body geom;',
     )
 
+    # Neighbourhood boundaries for the parts added to the area since (Odivelas, Loures).
+    fetch(
+        "freguesias_extra",
+        'relation["boundary"="administrative"]["admin_level"="8"](' + bbox(NORTH, WEST, AREA_NORTH, AREA_EAST) + ");" + chr(10) + "out body geom;",
+    )
+
     print("Streets")
     kinds = "motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|pedestrian"
     dlat = (NORTH - SOUTH) / 2

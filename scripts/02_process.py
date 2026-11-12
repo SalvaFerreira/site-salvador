@@ -212,9 +212,13 @@ def assign_heights(gdf):
 # ---------------------------------------------------------------- neighbourhoods
 
 def read_freguesias():
-    rows = []
-    for el in load("freguesias"):
+    rows, seen = [], set()
+    files = ["freguesias"] + (["freguesias_extra"] if (RAW / "freguesias_extra.json").exists() else [])
+    for el in (e for name in files for e in load(name)):
         name = el.get("tags", {}).get("name")
+        if el["id"] in seen:
+            continue
+        seen.add(el["id"])
         polys = polygons_of(relation_polygon(el))
         if name and polys:
             rows.append({"name": name, "geometry": unary_union(polys)})
