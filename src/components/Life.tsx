@@ -18,10 +18,10 @@ import {
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { shared } from "../city/environment";
-import { createShadowMaterial } from "../city/groundMaterials";
-import type { Polyline } from "../city/lines";
-import { project, SHADOW_PER_M, type Manifest } from "../city/loadCity";
-import { randomFrom } from "./Extras";
+import { createRunwayMaterial, createShadowMaterial } from "../city/groundMaterials";
+import { buildRibbons, type Polyline } from "../city/lines";
+import { SHADOW_PER_M } from "../city/loadCity";
+import { COVER, randomFrom, scatterOver, type CoverData } from "./Extras";
 
 const noRaycast = () => null;
 const WATER_Y = -2;
@@ -475,12 +475,10 @@ export function Boats({ ferries, sails }: { ferries: number[][][]; sails: number
 
 // ---------------------------------------------------------------- plane
 
-/** South end of the runway of Lisbon airport, [lon, lat] (approximate). */
-const RUNWAY_END: [number, number] = [-9.1436, 38.7662];
-/** Planes land heading north-north-east, over the city. */
-const APPROACH_HEADING_DEG = 25;
+/** How far out the plane appears, and how far it rolls along the runway after touching down. */
 const APPROACH_M = 7000;
-const ROLL_OUT_M = 700;
+const TOUCH_DOWN_M = 300;
+const ROLL_OUT_M = 1300;
 const GLIDE_SLOPE = Math.tan((3 * Math.PI) / 180);
 const PLANE_SPEED = 72; // m/s
 const PLANE_EVERY_S = 150;
@@ -496,23 +494,71 @@ function createPlaneGeometry(): BufferGeometry {
   ]);
 }
 
-/** Every few minutes a plane comes in low over the city and lands, as they do in Lisbon. */
-export function Plane({ manifest }: { manifest: Manifest }) {
+const PARKED_PLANES = 9;
+
+/** The airport: runways and taxiways drawn on the ground, and a few planes parked on the apron. */
+export function Airport({ cover, shapes }: { cover: CoverData; shapes: Map<number, BufferGeometry> }) {
+  const material = useMemo(createRunwayMaterial, []);
+  const planeGeometry = useMemo(createPlaneGeometry, []);
+  const tarmac = useMemo(() => {
+    const lines: Polyline[] = [
+      ...cover.taxiways.map((points) => ({ points: points.flat(), cls: 1 })),
+      ...cover.runways.map((r) => ({ points: r.points.flat(), cls: 0 })),
+    ];
+    return buildRibbons(lines, [22.5, 11], 0.35);
+  }, [cover]);
+  const parked = useMemo(() => {
+    const apron = shapes.get(COVER.apron);
+    if (!apron) return [];
+    const random = randomFrom(4);
+    const candidates = scatterOver(apron, 80, random);
+    const out: { x: number; y: number; heading: number }[] = [];
+    for (let i = 0; i < candidates.length && out.length < PARKED_PLANES; i += 2) {
+      const [x, y] = [candidates[i], candidates[i + 1]];
+      // Keep them apart, as on a real apron.
+      if (out.every((p) => Math.hypot(p.x - x, p.y - y) > 95)) out.push({ x, y, heading: random() * Math.PI * 2 });
+    }
+    return out;
+  }, [shapes]);
+
+  return (
+    <>
+      <mesh geometry={tarmac} material={material} renderOrder={1} raycast={noRaycast} frustumCulled={false} />
+      {parked.map((p, i) => (
+        <mesh key={i} geometry={planeGeometry} position={[p.x, 3, -p.y]} rotation-y={p.heading} scale={PLANE_SCALE} raycast={noRaycast}>
+          <meshLambertMaterial vertexColors />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+/** Every few minutes a plane comes in low over the city and lands on the main runway, as they do in Lisbon. */
+export function Plane({ runways }: { runways: CoverData["runways"] }) {
   const plane = useRef<Mesh>(null);
   const shadow = useRef<Mesh>(null);
   const geometry = useMemo(createPlaneGeometry, []);
   const shadowMaterial = useMemo(createShadowMaterial, []);
   const route = useMemo(() => {
-    const [tx, ty] = project(manifest, RUNWAY_END[0], RUNWAY_END[1]);
-    const a = (APPROACH_HEADING_DEG * Math.PI) / 180;
-    // Compass heading to map direction: north is +y, east is +x.
-    return { tx, ty, dx: Math.sin(a), dy: Math.cos(a) };
-  }, [manifest]);
+    // The longest runway, flown from its southern end: planes come in over the city.
+    const length = (r: CoverData["runways"][number]) => {
+      const [a, b] = [r.points[0], r.points[r.points.length - 1]];
+      return Math.hypot(b[0] - a[0], b[1] - a[1]);
+    };
+    const main = [...runways].sort((a, b) => length(b) - length(a))[0];
+    if (!main) return null;
+    let [from, to] = [main.points[0], main.points[main.points.length - 1]];
+    if (from[1] > to[1]) [from, to] = [to, from];
+    const d = length(main);
+    const dx = (to[0] - from[0]) / d;
+    const dy = (to[1] - from[1]) / d;
+    return { tx: from[0] + dx * TOUCH_DOWN_M, ty: from[1] + dy * TOUCH_DOWN_M, dx, dy };
+  }, [runways]);
 
   useFrame(() => {
     const p = plane.current;
     const s = shadow.current;
-    if (!p || !s) return;
+    if (!p || !s || !route) return;
     const time = shared.uTime.value;
     const travelled = ((time + 20) % PLANE_EVERY_S) * PLANE_SPEED;
     // Hidden between flights.

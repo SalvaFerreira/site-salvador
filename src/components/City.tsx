@@ -7,9 +7,9 @@ import { ACCENT_SLOTS, createBuildingMaterial } from "../city/buildingMaterial";
 import { BACKDROP, shared } from "../city/environment";
 import { createRiverMaterial, createShadowMaterial, createStreetMaterial, STREET_HALF_WIDTH } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
-import { loadChunk, loadManifest, loadShapes, project, type Featured, type Manifest } from "../city/loadCity";
-import { Bridge, BRIDGE_DECK_M, loadPlan, Parks, PlanLayer, type PlanData } from "./Extras";
-import { Boats, Cars, Plane, Trains, Trams } from "./Life";
+import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type Featured, type Manifest } from "../city/loadCity";
+import { Bridge, BRIDGE_DECK_M, loadCover, loadPlan, Parks, PlanLayer, type CoverData, type PlanData } from "./Extras";
+import { Airport, Boats, Cars, Plane, Trains, Trams } from "./Life";
 import Panel from "./Panel";
 
 export type Category = "job" | "education" | "personal";
@@ -139,6 +139,7 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
   const [chunks, setChunks] = useState<Chunk[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [plan, setPlan] = useState<PlanData | null>(null);
+  const [cover, setCover] = useState<{ data: CoverData; shapes: Map<number, BufferGeometry> } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +154,9 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
         (lines) => !cancelled && setRoads({ lines, geometry: buildRibbons(lines, STREET_HALF_WIDTH, 0.4) }),
       );
       loadPlan().then((p) => !cancelled && setPlan(p));
+      loadCover()
+        .then(async (data) => ({ data, shapes: await loadShapesByClass(data.file, data.unitsPerMetre) }))
+        .then((c) => !cancelled && setCover(c));
 
       // One spot per stop, at the address of its first project.
       const located = stops
@@ -208,7 +212,7 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
     };
   }, [stops, projects, onStats]);
 
-  return { manifest, land, roads, chunks, places, plan };
+  return { manifest, land, roads, chunks, places, plan, cover };
 }
 
 /** Runs the clock that moves everything in the city, and measures the frame rate. */
@@ -472,7 +476,7 @@ interface SceneProps {
 }
 
 function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, planOn, panelOpen, api, spots }: SceneProps) {
-  const { manifest, land, roads, chunks, places, plan } = useCity(stops, projects, onStats);
+  const { manifest, land, roads, chunks, places, plan, cover } = useCity(stops, projects, onStats);
   const buildingMaterial = useMemo(() => {
     const material = createBuildingMaterial();
     // Each featured building takes the colour of its category.
@@ -533,7 +537,8 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
         </mesh>
       )}
 
-      {plan && <Parks plan={plan} />}
+      {plan && <Parks plan={plan} cover={cover?.shapes ?? null} />}
+      {cover && <Airport cover={cover.data} shapes={cover.shapes} />}
       {/* Streets do not write depth, so they are drawn after everything solid (see createStreetMaterial). */}
       {roads && (
         <mesh geometry={roads.geometry} material={streetMaterial} renderOrder={1} raycast={noRaycast} frustumCulled={false} />
@@ -544,7 +549,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {plan && <Trains routes={plan.trainRoutes} />}
       {plan && <Boats ferries={plan.ferryRoutes} sails={plan.sailingLanes} />}
       {manifest && <Bridge manifest={manifest} />}
-      {manifest && <Plane manifest={manifest} />}
+      {cover && <Plane runways={cover.data.runways} />}
 
       {chunks.map((c) => (
         <mesh key={c.id} geometry={c.geometry} material={buildingMaterial} position={c.position} raycast={noRaycast} />

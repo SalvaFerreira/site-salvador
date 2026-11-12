@@ -89,6 +89,32 @@ void main() {
   });
 }
 
+/** Airport: class 0 is a runway (dark, white markings), class 1 a taxiway (grey, yellow line). */
+export function createRunwayMaterial(): ShaderMaterial {
+  return new ShaderMaterial({
+    vertexShader: ribbonVertex,
+    fragmentShader: /* glsl */ `
+uniform float uPlan;
+varying vec3 vRoad;
+
+void main() {
+  float runway = 1.0 - step(0.5, vRoad.z);
+  vec3 color = mix(vec3(0.5, 0.51, 0.53), vec3(0.3, 0.31, 0.33), runway);
+  float centre = 1.0 - smoothstep(0.04, 0.08, abs(vRoad.y));
+  float dashes = step(0.5, fract(vRoad.x / 60.0));
+  float edges = smoothstep(0.86, 0.9, abs(vRoad.y)) * (1.0 - smoothstep(0.93, 0.97, abs(vRoad.y)));
+  vec3 paint = mix(vec3(0.93, 0.76, 0.2), vec3(0.95), runway);
+  color = mix(color, paint, max(centre * mix(1.0, dashes, runway), edges * runway) * 0.9);
+  color = mix(color, vec3(0.86), uPlan * 0.5);
+  gl_FragColor = vec4(color, 1.0);
+  #include <colorspace_fragment>
+}
+`,
+    uniforms: { ...shared },
+    depthWrite: false,
+  });
+}
+
 /** Lines of the Plan layer: 0 rail, 1 underground rail, 2 metro, 3 tram. */
 export function createPlanLineMaterial(): ShaderMaterial {
   return new ShaderMaterial({

@@ -532,8 +532,16 @@ export async function loadChunk(
 
 /** Flat polygons on the ground from an LXB1 file: the land outline, the green spaces. */
 export async function loadShapes(file: string, unitsPerMetre: number): Promise<BufferGeometry> {
+  return (await loadShapesByClass(file, unitsPerMetre, false)).get(0) ?? new BufferGeometry();
+}
+
+/**
+ * Flat polygons grouped by the class stored in each one's "height" byte (the
+ * ground cover file), or all together under class 0.
+ */
+export async function loadShapesByClass(file: string, unitsPerMetre: number, byClass = true): Promise<Map<number, BufferGeometry>> {
   const f = await loadFootprints(file, unitsPerMetre);
-  const shapes: Shape[] = [];
+  const groups = new Map<number, Shape[]>();
   let ring = 0;
   let vert = 0;
   for (let b = 0; b < f.nBuildings; b++) {
@@ -552,9 +560,18 @@ export async function loadShapes(file: string, unitsPerMetre: number): Promise<B
       else shape = path;
       vert += n;
     }
-    if (shape) shapes.push(shape);
+    if (shape) {
+      const cls = byClass ? f.heights[b] : 0;
+      const list = groups.get(cls);
+      if (list) list.push(shape);
+      else groups.set(cls, [shape]);
+    }
   }
-  const geometry = new ShapeGeometry(shapes);
-  geometry.rotateX(-Math.PI / 2); // map (x, north) -> scene (x, 0, -north)
-  return geometry;
+  const out = new Map<number, BufferGeometry>();
+  for (const [cls, shapes] of groups) {
+    const geometry = new ShapeGeometry(shapes);
+    geometry.rotateX(-Math.PI / 2); // map (x, north) -> scene (x, 0, -north)
+    out.set(cls, geometry);
+  }
+  return out;
 }

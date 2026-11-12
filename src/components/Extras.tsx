@@ -45,6 +45,33 @@ export interface PlanData {
   sailingLanes: number[][][];
 }
 
+/** Ground cover for the emptier parts of the map, and the airport's runways. */
+export interface CoverData {
+  file: string;
+  unitsPerMetre: number;
+  runways: { width: number; points: number[][] }[];
+  taxiways: number[][][];
+}
+
+export async function loadCover(): Promise<CoverData> {
+  const res = await fetch("/data/cover.json");
+  if (!res.ok) throw new Error(`cover.json: HTTP ${res.status}`);
+  return res.json();
+}
+
+/** Classes of ground cover (scripts/06_cover.py) and the colour each is drawn in. */
+export const COVER = { wood: 0, grass: 1, pitch: 2, cemetery: 3, sand: 4, grey: 5, parking: 6, apron: 7 } as const;
+const COVER_COLORS: Record<number, string> = {
+  0: "#97bf7c",
+  1: "#b9d59d",
+  2: "#86c47c",
+  3: "#cbd3c1",
+  4: "#ecdcae",
+  5: "#dad4c8",
+  6: "#d0cfca",
+  7: "#cdced0",
+};
+
 export async function loadPlan(): Promise<PlanData> {
   const res = await fetch("/data/plan.json");
   if (!res.ok) throw new Error(`plan.json: HTTP ${res.status}`);
@@ -55,6 +82,9 @@ export async function loadPlan(): Promise<PlanData> {
 
 /** Extra trees scattered over the large green areas, which the council inventory does not cover. */
 const SCATTERED_TREES = 9000;
+/** Woodland (Monsanto above all) is planted densely: one tree for this many square metres. */
+const WOODLAND_M2_PER_TREE = 230;
+const WOODLAND_TREES_MAX = 45000;
 /** Trees are drawn in square tiles this wide, so that only the ones near the view are drawn. */
 const TREE_TILE_M = 1200;
 const TREE_COLORS = ["#5f9a4a", "#4f8a43", "#6fa653", "#467a3f", "#7aa84f"].map((c) => new Color(c));
@@ -85,8 +115,23 @@ async function loadTrees(file: string, unitsPerMetre: number): Promise<Float32Ar
   return out;
 }
 
+/** Total area of a flat geometry, in square metres. */
+function areaOf(geometry: BufferGeometry): number {
+  const pos = geometry.getAttribute("position");
+  const index = geometry.getIndex()!;
+  let total = 0;
+  for (let t = 0; t < index.count; t += 3) {
+    const [a, b, c] = [index.getX(t), index.getX(t + 1), index.getX(t + 2)];
+    total +=
+      Math.abs(
+        (pos.getX(b) - pos.getX(a)) * (pos.getZ(c) - pos.getZ(a)) - (pos.getX(c) - pos.getX(a)) * (pos.getZ(b) - pos.getZ(a)),
+      ) / 2;
+  }
+  return total;
+}
+
 /** Random points inside the green polygons, more of them in larger triangles. Returns x, y pairs. */
-function scatterOver(green: BufferGeometry, count: number, random: () => number): Float32Array {
+export function scatterOver(green: BufferGeometry, count: number, random: () => number): Float32Array {
   const pos = green.getAttribute("position");
   const index = green.getIndex()!;
   const nTris = index.count / 3;
@@ -138,8 +183,17 @@ function treeShare(zoom: number): number {
   return zoom >= 0.55 ? 1 : zoom >= 0.28 ? 0.5 : 0.25;
 }
 
-/** Green spaces, and the city's trees as small 3D canopies with a shadow each. */
-export function Parks({ plan }: { plan: PlanData }) {
+interface ParksProps {
+  plan: PlanData;
+  /** Ground cover by class; null until it has loaded. */
+  cover: Map<number, BufferGeometry> | null;
+}
+
+/**
+ * Green spaces and the rest of the ground cover (woodland, pitches, cemeteries,
+ * industrial land...), and the city's trees as small 3D canopies with a shadow each.
+ */
+export function Parks({ plan, cover }: ParksProps) {
   const [green, setGreen] = useState<BufferGeometry | null>(null);
   const [inventory, setInventory] = useState<Float32Array | null>(null);
 
@@ -153,9 +207,13 @@ export function Parks({ plan }: { plan: PlanData }) {
   }, [plan]);
 
   const tiles = useMemo<TreeTile[]>(() => {
-    if (!green || !inventory) return [];
+    if (!green || !inventory || !cover) return [];
     const random = randomFrom(2024);
     const scattered = scatterOver(green, SCATTERED_TREES, random);
+    const wood = cover.get(COVER.wood);
+    const woodland = wood
+      ? scatterOver(wood, Math.min(WOODLAND_TREES_MAX, Math.round(areaOf(wood) / WOODLAND_M2_PER_TREE)), random)
+      : new Float32Array(0);
 
     // Sort every tree into its tile. Street trees are small, park trees larger.
     const byTile = new Map<string, { x: number; y: number; r: number }[]>();
@@ -167,6 +225,7 @@ export function Parks({ plan }: { plan: PlanData }) {
     };
     for (let i = 0; i < inventory.length; i += 2) add(inventory[i], inventory[i + 1], 3 + random() * 2.6);
     for (let i = 0; i < scattered.length; i += 2) add(scattered[i], scattered[i + 1], 4.5 + random() * 3.5);
+    for (let i = 0; i < woodland.length; i += 2) add(woodland[i], woodland[i + 1], 5 + random() * 4);
 
     const canopy = createCanopyGeometry();
     const canopyMaterial = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
@@ -206,7 +265,7 @@ export function Parks({ plan }: { plan: PlanData }) {
       out.push({ canopies, shadows, total: list.length });
     }
     return out;
-  }, [green, inventory]);
+  }, [green, inventory, cover]);
 
   // Starts at 0 so the first frame always sets the counts.
   const share = useRef(0);
@@ -226,6 +285,13 @@ export function Parks({ plan }: { plan: PlanData }) {
   if (!green) return null;
   return (
     <>
+      {/* Ground cover lies under the council's green spaces, which are more detailed. */}
+      {cover &&
+        [...cover].map(([cls, geometry]) => (
+          <mesh key={cls} geometry={geometry} position-y={0.05 + cls * 0.01} renderOrder={-1.5} raycast={noRaycast}>
+            <meshBasicMaterial color={COVER_COLORS[cls] ?? "#dad4c8"} />
+          </mesh>
+        ))}
       <mesh geometry={green} position-y={0.15} renderOrder={-1} raycast={noRaycast}>
         <meshBasicMaterial color="#a9c98a" />
       </mesh>
