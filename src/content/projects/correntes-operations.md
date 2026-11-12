@@ -12,6 +12,9 @@ period: "Jun 2025 – Present"
 coordinates: [-9.129815, 38.744369]
 order: 2
 stack: []
+links:
+  - label: "correntes.pt"
+    url: "https://correntes.pt/"
 ---
 
 - Built 10+ AI agents and automations (Python, LLMs) for repetitive operational tasks, cutting manual workload ~6x and freeing the team to focus on client retention and recurring revenue.

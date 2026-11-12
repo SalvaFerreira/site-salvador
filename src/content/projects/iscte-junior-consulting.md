@@ -9,7 +9,9 @@ period: "Oct 2023 – Jan 2025"
 coordinates: [-9.15275, 38.74790]
 order: 4
 stack: []
-# links: add the website here, e.g. [{ label: "Website", url: "https://..." }]
+links:
+  - label: "isctejuniorconsulting.com"
+    url: "https://isctejuniorconsulting.com/"
 ---
 
 - Built 50+ databases, dashboards and reports (Power BI, Excel) for client projects and internal teams, turning raw data into clear recommendations for decision-makers.

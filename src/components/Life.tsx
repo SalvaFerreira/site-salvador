@@ -1,6 +1,6 @@
 // What moves in the city: cars, trams, trains, boats on the Tejo and a plane
-// coming in to land. With prefers-reduced-motion the scene clock stays at 0
-// and all of it stands still.
+// coming in to land. All of it keeps moving for every visitor; reduced motion
+// only changes how the camera travels (see City.tsx).
 import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import {
@@ -163,6 +163,21 @@ function buildWays(roads: Polyline[]): Way[] {
   return ways;
 }
 
+/**
+ * A small car, nose along +x, standing on the ground. White parts take the
+ * colour of each car; the cabin and wheels stay dark.
+ */
+function createCarGeometry(): BufferGeometry {
+  return mergeGeometries([
+    box(7.6, 1.5, 3.3, 0, 1.25, 0, "#ffffff"), // body
+    box(1.6, 0.5, 3.1, 3.2, 0.95, 0, "#ffffff"), // lower nose
+    box(3.9, 1.25, 2.9, -0.5, 2.6, 0, "#39424d"), // cabin and windows
+    box(3.5, 0.2, 2.6, -0.5, 3.3, 0, "#ffffff"), // roof
+    box(1.5, 1.1, 3.5, 2.3, 0.55, 0, "#1b1c1f"), // front wheels
+    box(1.5, 1.1, 3.5, -2.4, 0.55, 0, "#1b1c1f"), // rear wheels
+  ]);
+}
+
 /** Cars driving through the city, from street to street. */
 export function Cars({ roads }: { roads: Polyline[] }) {
   const mesh = useRef<InstancedMesh>(null);
@@ -200,16 +215,13 @@ export function Cars({ roads }: { roads: Polyline[] }) {
 
   const dummy = useMemo(() => new Object3D(), []);
   const spot = useMemo<Spot>(() => ({ x: 0, y: 0, height: 0, heading: 0 }), []);
-  const placed = useRef(false);
+  const geometry = useMemo(createCarGeometry, []);
 
   useFrame((_, delta) => {
     const m = mesh.current;
     if (!m || !state.count) return;
-    // The scene clock stays at 0 with reduced motion: place the cars once and leave them.
-    const moving = shared.uTime.value > 0;
-    if (!moving && placed.current) return;
-    placed.current = true;
-    const dt = moving ? Math.min(delta, 0.1) : 0;
+    // A long pause (a hidden tab) must not send every car flying down the road.
+    const dt = Math.min(delta, 0.1);
     const { ways, way, distance, speed, random } = state;
     for (let i = 0; i < state.count; i++) {
       let w = ways[way[i]];
@@ -228,7 +240,7 @@ export function Cars({ roads }: { roads: Polyline[] }) {
       along(w, distance[i], spot);
       // Keep to the right-hand side of the road.
       const side = w.cls === 2 ? 1.6 : 2.4;
-      dummy.position.set(spot.x + Math.sin(spot.heading) * side, 1.6, -(spot.y - Math.cos(spot.heading) * side));
+      dummy.position.set(spot.x + Math.sin(spot.heading) * side, 0.45, -(spot.y - Math.cos(spot.heading) * side));
       dummy.rotation.y = spot.heading;
       dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
@@ -238,10 +250,9 @@ export function Cars({ roads }: { roads: Polyline[] }) {
 
   if (!state.count) return null;
   return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, state.count]} raycast={noRaycast} frustumCulled={false}>
-      {/* Larger than life, like everything that moves here: at city scale a real car is a speck. */}
-      <boxGeometry args={[7.5, 2.6, 3.4]} />
-      <meshLambertMaterial />
+    // Larger than life, like everything that moves here: at city scale a real car is a speck.
+    <instancedMesh ref={mesh} args={[geometry, undefined, state.count]} raycast={noRaycast} frustumCulled={false}>
+      <meshLambertMaterial vertexColors />
     </instancedMesh>
   );
 }
@@ -250,21 +261,32 @@ export function Cars({ roads }: { roads: Polyline[] }) {
 
 const TRAM_SPEED = 7; // m/s
 
+/** A Lisbon tram: yellow below, white above, a band of windows between. */
+function createTramGeometry(): BufferGeometry {
+  return mergeGeometries([
+    box(17, 2.2, 3.4, 0, 1.6, 0, "#f0c419"),
+    box(16.4, 1.3, 3.2, 0, 3.35, 0, "#3b4651"),
+    box(17, 0.7, 3.4, 0, 4.35, 0, "#f4f1e8"),
+    box(9, 0.5, 1.4, 0, 4.95, 0, "#d9d5ca"),
+  ]);
+}
+
 /** Yellow trams going back and forth on real track around the centre. */
 export function Trams({ routes }: { routes: number[][][] }) {
   const group = useRef<Group>(null);
   const paths = useMemo(() => routes.map(flatPath), [routes]);
   const spot = useMemo<Spot>(() => ({ x: 0, y: 0, height: 0, heading: 0 }), []);
+  const geometry = useMemo(createTramGeometry, []);
 
   useFrame(() => {
     const g = group.current;
     if (!g) return;
     paths.forEach((path, i) => {
       const tram = g.children[i];
-      // Each tram starts at a different point of its line, also when nothing moves.
+      // Each tram starts at a different point of its line.
       const { distance } = shuttle(path.total, TRAM_SPEED, shared.uTime.value + i * 97 + 60, 8);
       along(path, distance, spot);
-      tram.position.set(spot.x, 2.5, -spot.y);
+      tram.position.set(spot.x, 0, -spot.y);
       tram.rotation.y = spot.heading;
     });
   });
@@ -272,9 +294,8 @@ export function Trams({ routes }: { routes: number[][][] }) {
   return (
     <group ref={group}>
       {paths.map((_, i) => (
-        <mesh key={i} raycast={noRaycast}>
-          <boxGeometry args={[17, 4.2, 3.4]} />
-          <meshLambertMaterial color="#f0c419" />
+        <mesh key={i} geometry={geometry} raycast={noRaycast}>
+          <meshLambertMaterial vertexColors />
         </mesh>
       ))}
     </group>
@@ -291,6 +312,16 @@ const TRAIN_COLORS: Record<string, string> = {
   "Linha do Sul": "#3a6db5",
 };
 
+/** A railway carriage. The white body takes the colour of its line. */
+function createCarriageGeometry(): BufferGeometry {
+  return mergeGeometries([
+    box(23, 1.9, 3.1, 0, 1.5, 0, "#ffffff"),
+    box(21.5, 1.1, 3.0, 0, 3.0, 0, "#39424d"),
+    box(23, 0.7, 3.1, 0, 3.9, 0, "#ffffff"),
+    box(21, 0.4, 2.3, 0, 4.45, 0, "#8d9299"),
+  ]);
+}
+
 export interface TrainRoute {
   name: string;
   /** [x, y, height] in map metres. */
@@ -302,6 +333,7 @@ export function Trains({ routes }: { routes: TrainRoute[] }) {
   const mesh = useRef<InstancedMesh>(null);
   const paths = useMemo(() => routes.map((r) => flatPath(r.points)), [routes]);
   const count = routes.length * 2 * CARRIAGES;
+  const geometry = useMemo(createCarriageGeometry, []);
   const dummy = useMemo(() => new Object3D(), []);
   const spot = useMemo<Spot>(() => ({ x: 0, y: 0, height: 0, heading: 0 }), []);
 
@@ -325,7 +357,7 @@ export function Trains({ routes }: { routes: TrainRoute[] }) {
         const { distance, returning } = shuttle(path.total, TRAIN_SPEED, shared.uTime.value + offset + 30, 15);
         for (let c = 0; c < CARRIAGES; c++) {
           along(path, distance + (returning ? c : -c) * CARRIAGE_GAP_M, spot);
-          dummy.position.set(spot.x, spot.height + 2, -spot.y);
+          dummy.position.set(spot.x, spot.height, -spot.y);
           dummy.rotation.y = spot.heading;
           dummy.updateMatrix();
           m.setMatrixAt((r * 2 + train) * CARRIAGES + c, dummy.matrix);
@@ -337,9 +369,8 @@ export function Trains({ routes }: { routes: TrainRoute[] }) {
 
   if (!count) return null;
   return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, count]} raycast={noRaycast} frustumCulled={false}>
-      <boxGeometry args={[23, 3.8, 3.1]} />
-      <meshLambertMaterial />
+    <instancedMesh ref={mesh} args={[geometry, undefined, count]} raycast={noRaycast} frustumCulled={false}>
+      <meshLambertMaterial vertexColors />
     </instancedMesh>
   );
 }
@@ -484,8 +515,8 @@ export function Plane({ manifest }: { manifest: Manifest }) {
     if (!p || !s) return;
     const time = shared.uTime.value;
     const travelled = ((time + 20) % PLANE_EVERY_S) * PLANE_SPEED;
-    // Hidden between flights, and always with reduced motion (the clock stays at 0).
-    const flying = time > 0 && travelled < APPROACH_M + ROLL_OUT_M;
+    // Hidden between flights.
+    const flying = travelled < APPROACH_M + ROLL_OUT_M;
     p.visible = flying;
     s.visible = flying;
     if (!flying) return;

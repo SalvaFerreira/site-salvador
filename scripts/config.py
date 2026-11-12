@@ -6,7 +6,16 @@ RAW = ROOT / "data" / "raw"
 OUT = ROOT / "public" / "data"
 
 # Visible area: Algés -> Parque das Nações, Almada/Cacilhas -> Benfica/Lumiar.
-WEST, SOUTH, EAST, NORTH = -9.23, 38.66, -9.09, 38.78
+WEST, SOUTH, EAST, NORTH = -9.23, 38.66, -9.08, 38.79
+
+# The area was first downloaded up to these limits, in a grid of tiles; the
+# strips added since (north and east) are downloaded separately, so the files
+# already on disk stay valid. Each strip is (name, south, west, north, east).
+GRID_EAST, GRID_NORTH = -9.09, 38.78
+EXTRA_STRIPS = [
+    ("n", GRID_NORTH, WEST, NORTH, EAST),
+    ("e", SOUTH, GRID_EAST, GRID_NORTH, EAST),
+]
 
 # Scene origin (Praça do Comércio). Everything is exported in metres
 # relative to this point: x = east, y = north.

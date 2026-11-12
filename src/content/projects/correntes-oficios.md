@@ -12,7 +12,9 @@ period: "Jun 2025 – Present"
 coordinates: [-9.129815, 38.744369]
 order: 1
 stack: []
-# links: add the company website here, e.g. [{ label: "Website", url: "https://..." }]
+links:
+  - label: "correntes.pt"
+    url: "https://correntes.pt/"
 ---
 
 Developing an LLM-powered agent that reads unstructured caregiver-replacement orders (PDF), updates the internal care-management system and reconciles caregiver payments automatically, replacing an end-to-end manual process.

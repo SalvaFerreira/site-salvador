@@ -11,7 +11,7 @@ import time
 
 import requests
 
-from config import EAST, NORTH, RAW, SOUTH, TILES, WEST
+from config import EAST as AREA_EAST, EXTRA_STRIPS, GRID_EAST as EAST, GRID_NORTH as NORTH, NORTH as AREA_NORTH, RAW, SOUTH, TILES, WEST
 
 ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
@@ -102,6 +102,15 @@ def main():
         for j in range(2):
             b = bbox(SOUTH + i * dlat, WEST + j * dlon, SOUTH + (i + 1) * dlat, WEST + (j + 1) * dlon)
             fetch(f"roads_{i}_{j}", f'way["highway"~"^({kinds})(_link)?$"]({b});\nout tags geom qt;')
+
+    print("Strips added to the area")
+    # The coastline again, for the whole extended area (the first download stops short of it).
+    fetch("coastline_extra", "way[\"natural\"=\"coastline\"](" + bbox(SOUTH, WEST, AREA_NORTH, AREA_EAST) + ");" + chr(10) + "out geom;")
+    for name, s, w, n, e in EXTRA_STRIPS:
+        b = bbox(s, w, n, e)
+        fetch(f"buildings_extra_{name}", f'way["building"]({b});\nout tags geom qt;')
+        fetch(f"building_relations_extra_{name}", f'relation["building"]["type"="multipolygon"]({b});\nout body geom qt;')
+        fetch(f"roads_extra_{name}", f'way["highway"~"^({kinds})(_link)?$"]({b});\nout tags geom qt;')
 
     print("Tram and metro lines")
     fetch("transit", f'way["railway"~"^(tram|subway)$"]({FULL});\nout tags geom;')

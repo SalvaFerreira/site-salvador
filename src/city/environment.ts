@@ -2,7 +2,7 @@
 
 /** Uniforms shared by reference: updating one value updates every material. */
 export const shared = {
-  /** Seconds since the scene started; stays 0 with prefers-reduced-motion. */
+  /** Seconds since the scene started. */
   uTime: { value: 0 },
   /** 1 while the Plan layer is shown. */
   uPlan: { value: 0 },

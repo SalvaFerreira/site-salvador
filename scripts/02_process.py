@@ -50,7 +50,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import linemerge, polygonize, unary_union
 
 from config import (
-    CRS_METRIC, EAST, LEVEL_HEIGHT_M, MIN_AREA_M2, NORTH, ORIGIN_LAT, ORIGIN_LON,
+    CRS_METRIC, EAST, EXTRA_STRIPS, LEVEL_HEIGHT_M, MIN_AREA_M2, NORTH, ORIGIN_LAT, ORIGIN_LON,
     OUT, RAW, SIMPLIFY_M, SOUTH, TILES, WEST,
 )
 
@@ -137,6 +137,8 @@ BRIDGE_TOWERS = []
 def read_buildings():
     seen, rows = set(), []
     names = [f"buildings_{i}_{j}" for i in range(TILES) for j in range(TILES)] + ["building_relations"]
+    for strip, *_ in EXTRA_STRIPS:
+        names += [f"buildings_extra_{strip}", f"building_relations_extra_{strip}"]
     for name in names:
         for el in load(name):
             key = (el["type"], el["id"])
@@ -223,7 +225,11 @@ def read_freguesias():
 
 def build_land(area, buildings):
     """Split the visible rectangle along the coastline; built-up faces are land."""
-    lines = [LineString(local_coords(el["geometry"])) for el in load("coastline") if len(el.get("geometry") or []) >= 2]
+    ways = {}
+    for name in ("coastline", "coastline_extra"):
+        if (RAW / f"{name}.json").exists():
+            ways.update({el["id"]: el for el in load(name)})
+    lines = [LineString(local_coords(el["geometry"])) for el in ways.values() if len(el.get("geometry") or []) >= 2]
     if not lines:
         sys.exit("No coastline found in the area: the land/river split needs another source.")
     merged = linemerge(unary_union(lines))
@@ -258,7 +264,10 @@ ROAD_CLASS = {"motorway": 0, "trunk": 0, "primary": 0, "secondary": 1, "tertiary
 def write_roads(path, land):
     """Street centre lines on land, as delta-encoded polylines."""
     seen, lines, classes = set(), [], []
-    for name in [f"roads_{i}_{j}" for i in range(2) for j in range(2)]:
+    for name in [f"roads_{i}_{j}" for i in range(2) for j in range(2)] + [f"roads_extra_{s[0]}" for s in EXTRA_STRIPS]:
+        if not (RAW / f"{name}.json").exists():
+            print(f"  {name}: not downloaded yet, skipped")
+            continue
         for el in load(name):
             pts = el.get("geometry") or []
             if el["id"] in seen or len(pts) < 2:

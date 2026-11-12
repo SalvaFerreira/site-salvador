@@ -211,13 +211,12 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
   return { manifest, land, roads, chunks, places, plan };
 }
 
-/** Runs the clock that moves cars, tram and water, and measures the frame rate. */
-function Clock({ reducedMotion, onStats }: { reducedMotion: boolean; onStats: OnStats }) {
+/** Runs the clock that moves everything in the city, and measures the frame rate. */
+function Clock({ onStats }: { onStats: OnStats }) {
   const frames = useRef(0);
   const elapsed = useRef(0);
   useFrame((state, delta) => {
-    // prefers-reduced-motion: the clock stays at 0 and nothing in the city moves.
-    shared.uTime.value = reducedMotion ? 0 : state.clock.elapsedTime;
+    shared.uTime.value = state.clock.elapsedTime;
     frames.current += 1;
     elapsed.current += delta;
     if (elapsed.current >= 1) {
@@ -597,7 +596,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       )}
       <LabelPositioner spots={spots} places={places} panelOpen={panelOpen} />
 
-      <Clock reducedMotion={reducedMotion} onStats={onStats} />
+      <Clock onStats={onStats} />
     </>
   );
 }
@@ -657,14 +656,9 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
   const [touring, setTouring] = useState(false);
   const [hovered, setHovered] = useState(-1);
   const showStats = useMemo(() => new URLSearchParams(window.location.search).has("stats"), []);
-  // The city stands still for visitors whose system asks for reduced motion.
-  // ?motion=on shows it moving anyway, to preview it on such a system.
-  const reducedMotion = useMemo(
-    () =>
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
-      new URLSearchParams(window.location.search).get("motion") !== "on",
-    [],
-  );
+  // For visitors whose system asks for reduced motion the camera cuts instead of
+  // flying. The small things that move in the city (cars, boats, the plane) keep moving.
+  const reducedMotion = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
   const [stats, setStats] = useState<Stats>({ buildings: 0, triangles: 0, firstChunkMs: 0, loadMs: 0, fps: 0 });
   const onStats = useCallback<OnStats>((patch) => {
     setStats((prev) => {
