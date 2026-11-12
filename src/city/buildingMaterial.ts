@@ -1,6 +1,5 @@
-// Buildings. At night: dark facades washed with sodium light near the street
-// and warm windows drawn procedurally (no textures). By day: pale stone and
-// terracotta roofs.
+// Buildings in daylight: pale Lisbon facades with rows of windows and
+// terracotta roofs, all drawn procedurally (no textures).
 import { Color, ShaderMaterial } from "three";
 import { shared } from "./environment";
 
@@ -11,42 +10,35 @@ attribute float seed;
 varying vec4 vWall;
 varying float vSeed;
 varying float vRoof;
-varying float vDepth;
 varying float vSun;
 
-const vec3 SUN = vec3(0.45, 0.75, 0.48);
+// Afternoon sun from the south-west.
+const vec3 SUN = vec3(-0.55, 0.62, 0.56);
 
 void main() {
   vWall = wall;
   vSeed = seed;
   vRoof = step(0.5, normal.y);
-  vSun = max(dot(normalize(normal), SUN), 0.0);
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  vDepth = -mv.z;
-  gl_Position = projectionMatrix * mv;
+  vSun = dot(normalize(normal), SUN);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
 
 const fragmentShader = /* glsl */ `
-uniform vec3 uFacade;
-uniform vec3 uRoof;
-uniform vec3 uDayWall;
-uniform vec3 uDayRoof;
-uniform vec3 uSodium;
-uniform vec3 uWindowA;
-uniform vec3 uWindowB;
-uniform vec3 uFogColor;
-uniform float uFogDensity;
+uniform vec3 uWalls[5];
+uniform vec3 uRoofA;
+uniform vec3 uRoofB;
+uniform vec3 uRoofFlat;
+uniform vec3 uGlass;
+uniform vec3 uAccent;
+uniform vec3 uAccentRoof;
+uniform vec3 uOff;
 uniform float uHover;
-uniform float uNight;
-uniform float uTime;
 uniform float uPlan;
-uniform float uActivity;
 
 varying vec4 vWall;
 varying float vSeed;
 varying float vRoof;
-varying float vDepth;
 varying float vSun;
 
 const float FLOOR_H = 3.0;
@@ -62,31 +54,39 @@ void main() {
   // Featured buildings carry 1 + their index in the integer part of the seed,
   // plus 100 when their lights are off.
   float tag = floor(vSeed);
-  float dark = step(99.5, tag);
-  tag -= 100.0 * dark;
+  float off = step(99.5, tag);
+  tag -= 100.0 * off;
   float featured = step(0.5, tag);
   float hovered = featured * (1.0 - step(0.5, abs(tag - uHover)));
   float seed = fract(vSeed);
+  float height = vWall.w;
 
-  float shade = 0.5 + 0.5 * vSun;
-  vec3 day;
-  vec3 night;
-  vec3 light = vec3(0.0);
+  vec3 color;
 
   if (vRoof > 0.5) {
-    day = uDayRoof * shade * mix(0.85, 1.1, hash(vec3(seed * 71.3, 1.7, 4.1)));
-    night = uRoof * (1.0 - 0.7 * dark) + uSodium * 0.05 * hovered;
+    // Terracotta tiles; tall or modern buildings get a flat grey roof.
+    float pick = hash(vec3(seed * 71.3, 1.7, 4.1));
+    vec3 tiles = mix(uRoofA, uRoofB, pick);
+    float flatRoof = max(step(34.0, height), step(pick, 0.14));
+    color = mix(tiles, uRoofFlat, flatRoof);
+    color = mix(color, uAccentRoof, featured * (1.0 - off));
+    color = mix(color, uOff * 1.25, off);
   } else {
     float along = vWall.x;
     float up = vWall.y;
     float len = vWall.z;
-    float height = vWall.w;
 
-    day = uDayWall * shade * mix(0.88, 1.06, hash(vec3(seed * 53.9, 9.2, 2.3)));
-    // Street lamps light the lowest floors.
-    night = uFacade + uSodium * 0.16 * exp(-up / 7.0);
-    // A building with its lights off: a darker block, faintly outlined on hover.
-    night = mix(night, uFacade * 0.35 + uSodium * 0.07 * hovered, dark);
+    // Each building takes one of five facade colours, white and cream most often.
+    float pick = hash(vec3(seed * 53.9, 9.2, 2.3));
+    int which = pick < 0.36 ? 0 : pick < 0.62 ? 1 : pick < 0.78 ? 2 : pick < 0.9 ? 3 : 4;
+    vec3 facade = uWalls[which];
+    facade = mix(facade, uAccent, featured * (1.0 - off));
+    facade = mix(facade, uOff, off);
+
+    // Sunlit and shaded sides, a darker band where the wall meets the street.
+    float light = mix(0.7, 1.0, smoothstep(-0.2, 0.6, vSun));
+    light *= mix(0.86, 1.0, smoothstep(0.0, 5.0, up));
+    color = facade * light;
 
     float floors = floor(height / FLOOR_H);
     float columns = floor(len / WINDOW_W);
@@ -94,47 +94,28 @@ void main() {
       vec2 cell = vec2(along / len * columns, up / FLOOR_H);
       vec2 id = floor(cell);
       vec2 f = fract(cell);
-      float wallId = floor(len * 37.0);
-
-      // Each building has its own share of lit windows, fewer late at night.
-      float share = mix(0.06, 0.42, hash(vec3(seed * 91.7, 3.1, 7.7))) * uActivity;
-      share = mix(share, 0.92, featured) * (1.0 - dark);
-
-      // One window in eight changes its mind now and then.
-      float restless = step(hash(vec3(id.y + wallId, id.x, seed * 133.1)), 0.125);
-      float epoch = floor(uTime / 22.0 + hash(vec3(id.x, id.y + wallId, seed * 77.7)));
-      float r = hash(vec3(id.x + wallId, id.y + epoch * restless * 17.0, seed * 517.3));
-      float lit = step(r, share) * step(id.y, floors - 0.5);
 
       vec2 fw = fwidth(cell);
-      vec2 edge = smoothstep(vec2(0.22, 0.28) - fw, vec2(0.22, 0.28) + fw, f)
-                * (1.0 - smoothstep(vec2(0.78, 0.80) - fw, vec2(0.78, 0.80) + fw, f));
-      float mask = edge.x * edge.y;
+      vec2 edge = smoothstep(vec2(0.26, 0.26) - fw, vec2(0.26, 0.26) + fw, f)
+                * (1.0 - smoothstep(vec2(0.74, 0.80) - fw, vec2(0.74, 0.80) + fw, f));
+      float mask = edge.x * edge.y * step(id.y, floors - 0.5);
 
-      float tone = hash(vec3(id.y, id.x + wallId, seed * 211.9));
-      vec3 glow = mix(uWindowA, uWindowB, tone) * mix(1.2, 3.2, tone * tone);
-      glow *= 1.0 + 0.5 * featured + 0.6 * hovered;
-
-      // Far away a window is smaller than a pixel. First drop the window
-      // outline and light the whole cell at the window's share of its area,
-      // then, further still, fade to the average of the wall. Both keep the
-      // total light constant, so nothing flickers as the camera moves.
+      // Far away a window is smaller than a pixel: fade to the average tone
+      // of the wall instead of shimmering.
       float size = max(fw.x, fw.y);
-      float coverage = 0.56 * 0.52;
-      float shape = mix(mask, coverage, smoothstep(0.2, 0.6, size));
-      vec3 near = glow * lit * shape;
-      vec3 average = mix(uWindowA, uWindowB, 0.5) * 1.9 * share * coverage * step(up, floors * FLOOR_H);
-      light = mix(near, average, smoothstep(0.7, 1.6, size));
-
-      // By day the windows are dark glass.
-      day *= 1.0 - 0.35 * shape * step(id.y, floors - 0.5);
+      float coverage = 0.48 * 0.54;
+      float window = mix(mask, coverage * step(up, floors * FLOOR_H), smoothstep(0.25, 0.9, size));
+      color = mix(color, uGlass * light, window * mix(0.78, 0.3, off));
     }
   }
 
-  // The Plan layer turns the city down so the drawing on top can be read.
-  vec3 color = mix(day, night + light * (1.0 - 0.65 * uPlan * (1.0 - featured)), uNight);
-  float fog = 1.0 - exp(-uFogDensity * uFogDensity * vDepth * vDepth);
-  gl_FragColor = vec4(mix(color, uFogColor, fog), 1.0);
+  color *= 1.0 + 0.12 * hovered;
+  // The Plan layer washes the city out so the drawing on top can be read.
+  float grey = dot(color, vec3(0.3, 0.6, 0.1));
+  color = mix(color, mix(vec3(grey), vec3(0.93), 0.45), uPlan * 0.75 * (1.0 - featured));
+
+  gl_FragColor = vec4(color, 1.0);
+  #include <colorspace_fragment>
 }
 `;
 
@@ -144,13 +125,24 @@ export function createBuildingMaterial(): ShaderMaterial {
     fragmentShader,
     uniforms: {
       ...shared,
-      uFacade: { value: new Color("#08080a") },
-      uRoof: { value: new Color("#0e0d0e") },
-      uDayWall: { value: new Color("#bdb4a4") },
-      uDayRoof: { value: new Color("#b0694a") },
-      uSodium: { value: new Color("#ffb15c") },
-      uWindowA: { value: new Color("#ffc46b") },
-      uWindowB: { value: new Color("#ffe2a6") },
+      uWalls: {
+        value: [
+          new Color("#f3eee4"), // white
+          new Color("#ecdfc4"), // cream
+          new Color("#efd491"), // yellow
+          new Color("#e9c3b2"), // pink
+          new Color("#d3dbe2"), // blue-grey
+        ],
+      },
+      uRoofA: { value: new Color("#c4603f") },
+      uRoofB: { value: new Color("#d97f5a") },
+      uRoofFlat: { value: new Color("#c6c4be") },
+      uGlass: { value: new Color("#56626e") },
+      // Featured buildings: the yellow of Praça do Comércio.
+      uAccent: { value: new Color("#f2b632") },
+      uAccentRoof: { value: new Color("#a8452c") },
+      // "Lights off" building.
+      uOff: { value: new Color("#34363b") },
       uHover: { value: -1 },
     },
   });
