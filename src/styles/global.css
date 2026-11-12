@@ -37,7 +37,7 @@ a {
 .stats {
   position: fixed;
   left: 16px;
-  bottom: 40px;
+  bottom: 60px;
   margin: 0;
   font: 11px/1.5 ui-monospace, Consolas, monospace;
   color: #8b8578;
@@ -284,4 +284,106 @@ a:focus-visible {
     flex-direction: column;
     gap: 2px;
   }
+}
+
+/* Plan layer: toggle, legend and credit */
+.footline button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #f1eadc;
+  font: inherit;
+  text-decoration: underline;
+  text-shadow: inherit;
+  cursor: pointer;
+}
+
+.footline button:hover,
+.footline button[aria-pressed="true"] {
+  color: var(--sodium);
+}
+
+.footline button:focus-visible {
+  outline: 1px solid var(--sodium);
+  outline-offset: 3px;
+}
+
+.legend,
+.plan-credit {
+  display: none;
+}
+
+.plan-on .legend {
+  position: fixed;
+  left: 16px;
+  bottom: 34px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: #a39c8e;
+  text-shadow: 0 0 6px #000;
+}
+
+.plan-on .plan-credit {
+  display: inline;
+}
+
+.key {
+  width: 14px;
+  height: 3px;
+  margin-left: 10px;
+  background: #e8ded0;
+}
+
+.key:first-child {
+  margin-left: 0;
+}
+
+.key-green {
+  height: 8px;
+  background: #5f8a4e;
+}
+
+.key-metro {
+  background: repeating-linear-gradient(90deg, #e8ded0 0 4px, transparent 4px 7px);
+}
+
+.key-tram {
+  background: #f2b842;
+}
+
+.shot .legend {
+  display: none;
+}
+
+/* Daylight: dark ink over the pale city */
+.day .masthead,
+.day .footline,
+.day .legend,
+.day .place-label {
+  text-shadow: 0 0 6px #e6e0d4;
+}
+
+.day .masthead .name,
+.day .footline a,
+.day .footline button,
+.day .place-label {
+  color: #1d1a16;
+}
+
+.day .masthead .thesis,
+.day .footline,
+.day .legend,
+.day .attribution,
+.day .stats {
+  color: #4a453c;
+}
+
+.day .place-label:hover,
+.day .place-label:focus-visible,
+.day .footline a:hover,
+.day .footline button:hover,
+.day .footline button[aria-pressed="true"] {
+  color: #8a4a12;
 }

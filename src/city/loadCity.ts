@@ -314,9 +314,9 @@ export async function loadChunk(
   return { geometry, triangles: ix / 3, featured: [...featured.values()] };
 }
 
-/** Flat land outline; everything outside it is river. */
-export async function loadLand(manifest: Manifest): Promise<BufferGeometry> {
-  const f = await loadFootprints(manifest.land.file, manifest.land.unitsPerMetre);
+/** Flat polygons on the ground from an LXB1 file: the land outline, the green spaces. */
+export async function loadShapes(file: string, unitsPerMetre: number): Promise<BufferGeometry> {
+  const f = await loadFootprints(file, unitsPerMetre);
   const shapes: Shape[] = [];
   let ring = 0;
   let vert = 0;

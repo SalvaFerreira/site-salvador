@@ -1,13 +1,15 @@
-import { Html, Line, OrbitControls } from "@react-three/drei";
+import { Html, OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer, ToneMapping } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Vector3, type BufferGeometry } from "three";
+import { Color, FogExp2, MeshBasicMaterial, Vector3, type BufferGeometry } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { createBuildingMaterial, FOG_COLOR, FOG_DENSITY } from "../city/buildingMaterial";
-import { loadChunk, loadLand, loadManifest, project, type Featured, type Manifest } from "../city/loadCity";
-import { createRoadMaterial, loadRoads } from "../city/roads";
+import { createBuildingMaterial } from "../city/buildingMaterial";
+import { FOG_COLOR, FOG_DENSITY, shared, updateEnvironment } from "../city/environment";
+import { loadChunk, loadManifest, loadShapes, project, type Featured, type Manifest } from "../city/loadCity";
+import { buildRibbons, createRiverMaterial, createStreetMaterial, loadLines, STREET_HALF_WIDTH } from "../city/roads";
+import { Bridge, BRIDGE_DECK_M, loadPlan, PlanLayer, Tram, type PlanData } from "./Extras";
 import Panel from "./Panel";
 
 export interface Project {
@@ -15,6 +17,8 @@ export interface Project {
   /** Address of this place on the site, e.g. /work/<slug> or /now. */
   path: string;
   kind: "work" | "now" | "contact";
+  /** "plan" places only show while the Plan layer is on. */
+  layer: "city" | "plan";
   lights: "on" | "off";
   title: string;
   place: string;
@@ -70,7 +74,8 @@ const START_CAMERA = new Vector3(500, 1150, 1150);
 /** Where the camera sits relative to a building it has flown to. */
 const CLOSE_UP = new Vector3(150, 190, 260);
 const FLIGHT_SECONDS = 2.6;
-const BRIDGE_DECK_M = 70;
+const LAND_NIGHT = new Color("#120d09");
+const LAND_DAY = new Color("#8c8679");
 
 const noRaycast = () => null;
 /** ?shot: no interface, for taking the preview images. */
@@ -82,6 +87,7 @@ function useCity(projects: Project[], onStats: OnStats) {
   const [roads, setRoads] = useState<BufferGeometry | null>(null);
   const [chunks, setChunks] = useState<Chunk[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
+  const [plan, setPlan] = useState<PlanData | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,8 +97,11 @@ function useCity(projects: Project[], onStats: OnStats) {
       const m = await loadManifest();
       if (cancelled) return;
       setManifest(m);
-      loadLand(m).then((g) => !cancelled && setLand(g));
-      loadRoads(m).then((g) => !cancelled && setRoads(g));
+      loadShapes(m.land.file, m.land.unitsPerMetre).then((g) => !cancelled && setLand(g));
+      loadLines(m.roads.file, m.roads.unitsPerMetre).then(
+        (lines) => !cancelled && setRoads(buildRibbons(lines, STREET_HALF_WIDTH, 0.5)),
+      );
+      loadPlan().then((p) => !cancelled && setPlan(p));
 
       const located = projects.map((p, index) => {
         const [x, y] = project(m, p.coordinates[0], p.coordinates[1]);
@@ -146,7 +155,34 @@ function useCity(projects: Project[], onStats: OnStats) {
     };
   }, [projects, onStats]);
 
-  return { manifest, land, roads, chunks, places };
+  return { manifest, land, roads, chunks, places, plan };
+}
+
+/** Keeps the light of the scene in step with the time in Lisbon, and runs the clock for motion. */
+function Environment({ hour, reducedMotion, land }: { hour?: number; reducedMotion: boolean; land: MeshBasicMaterial }) {
+  const scene = useThree((s) => s.scene);
+  const since = useRef(Infinity);
+
+  useEffect(() => {
+    const fog = new FogExp2(FOG_COLOR, FOG_DENSITY);
+    fog.color = FOG_COLOR; // share the colour object, so the fog follows the time of day
+    scene.fog = fog;
+    scene.background = FOG_COLOR;
+  }, [scene]);
+
+  useFrame((state, delta) => {
+    // prefers-reduced-motion: the clock stays at 0 and nothing in the city moves.
+    shared.uTime.value = reducedMotion ? 0 : state.clock.elapsedTime;
+    since.current += delta;
+    if (since.current > 20) {
+      since.current = 0;
+      updateEnvironment(hour);
+      land.color.copy(LAND_DAY).lerp(LAND_NIGHT, shared.uNight.value);
+      // The page's text switches to dark ink over the daytime city.
+      document.documentElement.classList.toggle("day", shared.uNight.value < 0.5);
+    }
+  });
+  return null;
 }
 
 function FrameRate({ onStats }: { onStats: OnStats }) {
@@ -228,18 +264,21 @@ interface SceneProps {
   onSelect: (index: number) => void;
   reducedMotion: boolean;
   onStats: OnStats;
+  planOn: boolean;
+  hour?: number;
 }
 
-function Scene({ projects, selected, onSelect, reducedMotion, onStats }: SceneProps) {
-  const { manifest, land, roads, chunks, places } = useCity(projects, onStats);
+function Scene({ projects, selected, onSelect, reducedMotion, onStats, planOn, hour }: SceneProps) {
+  const { manifest, land, roads, chunks, places, plan } = useCity(projects, onStats);
   const buildingMaterial = useMemo(createBuildingMaterial, []);
-  const roadMaterial = useMemo(createRoadMaterial, []);
-  const scene = useThree((s) => s.scene);
+  const roadMaterial = useMemo(createStreetMaterial, []);
+  const riverMaterial = useMemo(createRiverMaterial, []);
+  const landMaterial = useMemo(() => new MeshBasicMaterial({ color: LAND_NIGHT }), []);
   const [hovered, setHovered] = useState(-1);
 
   useEffect(() => {
-    scene.background = FOG_COLOR;
-  }, [scene]);
+    shared.uPlan.value = planOn ? 1 : 0;
+  }, [planOn]);
 
   useEffect(() => {
     // The shader tags featured buildings with 1 + their index.
@@ -254,19 +293,18 @@ function Scene({ projects, selected, onSelect, reducedMotion, onStats }: ScenePr
 
   return (
     <>
-      <fogExp2 attach="fog" args={[FOG_COLOR, FOG_DENSITY]} />
+      <Environment hour={hour} reducedMotion={reducedMotion} land={landMaterial} />
 
       {/* Tejo */}
-      <mesh rotation-x={-Math.PI / 2} position-y={-2} raycast={noRaycast}>
+      <mesh rotation-x={-Math.PI / 2} position-y={-2} material={riverMaterial} raycast={noRaycast}>
         <planeGeometry args={[60000, 60000]} />
-        <meshBasicMaterial color="#020304" />
       </mesh>
 
-      {land && (
-        <mesh geometry={land} raycast={noRaycast}>
-          <meshBasicMaterial color="#120d09" />
-        </mesh>
-      )}
+      {land && <mesh geometry={land} material={landMaterial} raycast={noRaycast} />}
+
+      {plan && <PlanLayer plan={plan} visible={planOn} />}
+      {plan && <Tram route={plan.tramRoute} />}
+      {manifest && <Bridge manifest={manifest} />}
 
       {roads && <mesh geometry={roads} material={roadMaterial} raycast={noRaycast} frustumCulled={false} />}
 
@@ -276,7 +314,9 @@ function Scene({ projects, selected, onSelect, reducedMotion, onStats }: ScenePr
 
       {/* The merged city is not raycast (a million triangles); each featured
           building gets an invisible box to click and a label that is a real button. */}
-      {places.map((f) => (
+      {places
+        .filter((f) => planOn || projects[f.index].layer === "city" || f.index === selected)
+        .map((f) => (
         <group key={f.index} position={[f.x, 0, f.z]}>
           {f.radius > 0 && (
             <mesh
@@ -304,29 +344,6 @@ function Scene({ projects, selected, onSelect, reducedMotion, onStats }: ScenePr
               </button>
             </Html>
           )}
-        </group>
-      ))}
-
-      {manifest?.bridge.map((way, i) => (
-        <Line
-          key={i}
-          points={way.points.map(([x, y]) => [x, BRIDGE_DECK_M, -y] as [number, number, number])}
-          color="#ffb15c"
-          lineWidth={1.5}
-        />
-      ))}
-
-      {/* Bridge towers, with the red aviation lights on top */}
-      {manifest?.bridgeTowers.map((t, i) => (
-        <group key={i} position={[t.x, 0, -t.y]}>
-          <mesh position-y={t.height / 2} raycast={noRaycast}>
-            <boxGeometry args={[t.width, t.height, t.depth]} />
-            <meshBasicMaterial color="#0a0908" />
-          </mesh>
-          <mesh position-y={t.height + 3} raycast={noRaycast}>
-            <sphereGeometry args={[3, 12, 8]} />
-            <meshBasicMaterial color={[6, 0.35, 0.2]} toneMapped={false} />
-          </mesh>
         </group>
       ))}
 
@@ -366,6 +383,12 @@ function canRunCity(): boolean {
 
 export default function City({ projects, initialPath }: { projects: Project[]; initialPath?: string }) {
   const live = useMemo(canRunCity, []);
+  // ?hour=14.5 pretends it is that time in Lisbon, to see the city by day or at dusk.
+  const hour = useMemo(() => {
+    const value = new URLSearchParams(window.location.search).get("hour");
+    return value === null || Number.isNaN(Number(value)) ? undefined : Number(value);
+  }, []);
+  const [planOn, setPlanOn] = useState(false);
   const showStats = useMemo(() => new URLSearchParams(window.location.search).has("stats"), []);
   const reducedMotion = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
   const [stats, setStats] = useState<Stats>({ buildings: 0, triangles: 0, firstChunkMs: 0, loadMs: 0, fps: 0 });
@@ -401,7 +424,24 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
 
   useEffect(() => {
     document.title = current ? `${current.title} — Salvador Ferreira` : "Salvador Ferreira";
+    // A place that belongs to the Plan layer brings the layer with it.
+    if (current?.layer === "plan") setPlanOn(true);
   }, [current]);
+
+  // The Plan button is in the page's own HTML; it only works once the city is running.
+  useEffect(() => {
+    const button = document.getElementById("plan-toggle");
+    if (!button || !live) return;
+    button.hidden = false;
+    const toggle = () => setPlanOn((on) => !on);
+    button.addEventListener("click", toggle);
+    return () => button.removeEventListener("click", toggle);
+  }, [live]);
+
+  useEffect(() => {
+    document.getElementById("plan-toggle")?.setAttribute("aria-pressed", String(planOn));
+    document.documentElement.classList.toggle("plan-on", planOn);
+  }, [planOn]);
 
   return (
     <div className="city">
@@ -412,7 +452,15 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
           gl={{ antialias: true, powerPreference: "high-performance" }}
           camera={{ position: START_CAMERA, fov: 40, near: 20, far: 40000 }}
         >
-          <Scene projects={projects} selected={selected} onSelect={select} reducedMotion={reducedMotion} onStats={onStats} />
+          <Scene
+            projects={projects}
+            selected={selected}
+            onSelect={select}
+            reducedMotion={reducedMotion}
+            onStats={onStats}
+            planOn={planOn}
+            hour={hour}
+          />
         </Canvas>
       ) : (
         // No 3D: a still of the city. Everything stays reachable through the List.

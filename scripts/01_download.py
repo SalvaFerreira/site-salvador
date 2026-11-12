@@ -103,6 +103,9 @@ def main():
             b = bbox(SOUTH + i * dlat, WEST + j * dlon, SOUTH + (i + 1) * dlat, WEST + (j + 1) * dlon)
             fetch(f"roads_{i}_{j}", f'way["highway"~"^({kinds})(_link)?$"]({b});\nout tags geom qt;')
 
+    print("Tram and metro lines")
+    fetch("transit", f'way["railway"~"^(tram|subway)$"]({FULL});\nout tags geom;')
+
 
 if __name__ == "__main__":
     main()

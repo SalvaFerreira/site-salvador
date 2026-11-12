@@ -17,6 +17,7 @@ const projects = places.map((e) => ({
   place: e.data.place,
   coordinates: e.data.coordinates,
   kind: e.data.kind,
+  layer: e.data.layer,
   lights: e.data.lights,
   stack: e.data.stack,
   html: e.rendered?.html ?? "",
@@ -44,10 +45,20 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Per
     <nav class="footline" aria-label="Site">
       <span>Lisbon <time id="lisbon-time"></time></span>
       <a href="/list">List</a>
+      <button type="button" id="plan-toggle" aria-pressed="false" hidden>Plan</button>
     </nav>
 
+    <p class="legend">
+      <span class="key key-green"></span>Green spaces
+      <span class="key key-rail"></span>Railway
+      <span class="key key-metro"></span>Metro
+      <span class="key key-tram"></span>Tram
+    </p>
+
     <p class="attribution">
-      Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>
+      <span class="plan-credit">Green spaces and railways: Câmara Municipal de Lisboa · </span>Map data © <a
+        href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a
+      >
     </p>
 
     <noscript>

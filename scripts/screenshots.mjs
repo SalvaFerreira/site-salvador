@@ -27,7 +27,8 @@ const page = await browser.newPage();
 
 async function shoot(path, file, width, height) {
   await page.setViewport({ width, height });
-  await page.goto(`${BASE}${path}?shot`, { waitUntil: "networkidle0" });
+  // Always the evening city, whatever time the script is run.
+  await page.goto(`${BASE}${path}?shot&hour=22`, { waitUntil: "networkidle0" });
   await page.waitForFunction(() => window.__city?.loadMs > 0, { timeout: 60000 });
   await new Promise((resolve) => setTimeout(resolve, 1500));
   await page.screenshot({ path: file, type: "jpeg", quality: 82 });

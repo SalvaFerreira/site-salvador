@@ -152,7 +152,7 @@ def read_buildings():
                     BRIDGE_TOWERS.append({
                         "x": round(poly.centroid.x, 1), "y": round(poly.centroid.y, 1),
                         "width": round(maxx - minx, 1), "depth": round(maxy - miny, 1),
-                        "height": round(number(tags.get("height")) or 190.0, 1),
+                        "height": round(number(tags.get("height")) or 70.0, 1),
                     })
                 continue
             for poly in polygons_of(element_polygon(el)):
@@ -438,7 +438,7 @@ def main():
     stats["assignedByNearest"] = int(missing.sum())
 
     OUT.mkdir(parents=True, exist_ok=True)
-    for old in OUT.glob("*.bin"):
+    for old in [f for f in OUT.glob("*.bin") if not f.name.startswith("plan-")]:  # plan-* belong to 05_plan.py
         old.unlink()
 
     print("Writing chunks")

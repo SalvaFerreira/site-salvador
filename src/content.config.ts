@@ -18,6 +18,8 @@ const projects = defineCollection({
      * "now" and "contact" are spots without a building, at /now and /contact.
      */
     kind: z.enum(["work", "now", "contact"]).default("work"),
+    /** "plan" places are only marked while the Plan layer is on (personal projects). */
+    layer: z.enum(["city", "plan"]).default("city"),
     /** "off" keeps the building dark. */
     lights: z.enum(["on", "off"]).default("on"),
   }),
