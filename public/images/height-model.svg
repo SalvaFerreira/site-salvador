@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="526" height="266" viewBox="0 0 526 266" font-family="system-ui, -apple-system, Segoe UI, sans-serif" role="img">
+<rect width="526" height="266" fill="#1d1f23"/>
+<text x="0" y="16" fill="#efe9df" font-size="14">Mean height error by building height, in metres</text>
+<text x="0" y="34" fill="#a9a59d" font-size="12">Lower is better. Scored on parts of the city each model had not seen.</text>
+<rect x="0" y="42" width="10" height="10" rx="2" fill="#d4772f"/>
+<text x="15" y="51" fill="#a9a59d" font-size="12">Model</text>
+<rect x="69.0" y="42" width="10" height="10" rx="2" fill="#5e8ccc"/>
+<text x="84.0" y="51" fill="#a9a59d" font-size="12">Previous method (median of nearby buildings)</text>
+<line x1="74.0" y1="62" x2="74.0" y2="222" stroke="#3a3d43" stroke-width="1"/>
+<text x="74.0" y="236" fill="#a9a59d" font-size="11" text-anchor="middle">0 m</text>
+<line x1="210.0" y1="62" x2="210.0" y2="222" stroke="#3a3d43" stroke-width="1"/>
+<text x="210.0" y="236" fill="#a9a59d" font-size="11" text-anchor="middle">2 m</text>
+<line x1="346.0" y1="62" x2="346.0" y2="222" stroke="#3a3d43" stroke-width="1"/>
+<text x="346.0" y="236" fill="#a9a59d" font-size="11" text-anchor="middle">4 m</text>
+<line x1="482.0" y1="62" x2="482.0" y2="222" stroke="#3a3d43" stroke-width="1"/>
+<text x="482.0" y="236" fill="#a9a59d" font-size="11" text-anchor="middle">6 m</text>
+<text x="64" y="82" fill="#efe9df" font-size="12" text-anchor="end">0-7 m</text>
+<path d="M74,66 h104.8 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-104.8 z" fill="#d4772f"/>
+<text x="188.8" y="76" fill="#efe9df" font-size="11">1.6</text>
+<path d="M74,80 h183.0 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-183.0 z" fill="#5e8ccc"/>
+<text x="267.0" y="90" fill="#efe9df" font-size="11">2.8</text>
+<text x="64" y="126" fill="#efe9df" font-size="12" text-anchor="end">7-13 m</text>
+<path d="M74,110 h96.6 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-96.6 z" fill="#d4772f"/>
+<text x="180.6" y="120" fill="#efe9df" font-size="11">1.5</text>
+<path d="M74,124 h110.2 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-110.2 z" fill="#5e8ccc"/>
+<text x="194.2" y="134" fill="#efe9df" font-size="11">1.7</text>
+<text x="64" y="170" fill="#efe9df" font-size="12" text-anchor="end">13-22 m</text>
+<path d="M74,154 h144.2 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-144.2 z" fill="#d4772f"/>
+<text x="228.2" y="164" fill="#efe9df" font-size="11">2.2</text>
+<path d="M74,168 h154.4 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-154.4 z" fill="#5e8ccc"/>
+<text x="238.4" y="178" fill="#efe9df" font-size="11">2.3</text>
+<text x="64" y="214" fill="#efe9df" font-size="12" text-anchor="end">22-40 m</text>
+<path d="M74,198 h325.8 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-325.8 z" fill="#d4772f"/>
+<text x="409.8" y="208" fill="#efe9df" font-size="11">4.8</text>
+<path d="M74,212 h360.5 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-360.5 z" fill="#5e8ccc"/>
+<text x="444.5" y="222" fill="#efe9df" font-size="11">5.4</text>
+<text x="0" y="256" fill="#a9a59d" font-size="12">40+ m (292 buildings, not drawn): model 20.2 m, previous 19.6 m.</text>
+</svg>
