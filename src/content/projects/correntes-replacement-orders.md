@@ -1,6 +1,5 @@
 ---
-# Provisional title: replace with the final one.
-title: "Correntes de Memória: ofícios agent"
+title: "Correntes de Memória: replacement orders and payments agent"
 label: "Correntes de Memória"
 group: "Correntes de Memória"
 category: "job"
