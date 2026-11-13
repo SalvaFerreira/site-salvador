@@ -324,6 +324,9 @@ ROAD_SIMPLIFY_M = 2.5
 ROAD_CLASS = {"motorway": 0, "trunk": 0, "primary": 0, "secondary": 1, "tertiary": 1}
 
 
+ELEVATED_BRIDGES = {"Ponte 25 de Abril", "Ponte Vasco da Gama"}
+
+
 def write_roads(path, land):
     """Street centre lines on land, as delta-encoded polylines."""
     seen, lines, classes = set(), [], []
@@ -340,6 +343,10 @@ def write_roads(path, land):
             if tags.get("tunnel") in ("yes", "building_passage") or str(tags.get("layer", "")).startswith("-"):
                 continue
             if tags.get("area") == "yes":
+                continue
+            # The two bridges are drawn up in the air, ramps included (Bridge25 and
+            # VascoDaGama in the site); a copy on the ground would show under them.
+            if tags.get("bridge") and tags.get("name") in ELEVATED_BRIDGES:
                 continue
             kind = tags["highway"].replace("_link", "")
             lines.append(LineString(local_coords(pts)))

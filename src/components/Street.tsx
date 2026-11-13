@@ -328,6 +328,8 @@ const VDG_LOW_DECK_M = 14;
 const VDG_HALF_WIDTH_M = 17;
 const VDG_PIER_EVERY_M = 70;
 const VDG_LAMP_EVERY_M = 40;
+/** Where the viaduct on land ends the deck comes down to the road on the ground at this slope. */
+const VDG_RAMP_SLOPE = 0.07;
 const CONCRETE = "#d9d5cc";
 
 /**
@@ -356,12 +358,19 @@ export function VascoDaGama({ bridge }: { bridge: StreetData["bridge"] & { span?
 
     /** Distance along the main bridge from its north end (negative before it). */
     const along = (x: number, y: number) => (a ? (x - a[0]) * ux + (y - a[1]) * uy : 0);
-    /** Height of the deck at a point: high over the channel, sloping down along the viaducts. */
+    // The end of the viaduct on land, where the motorway reaches the ground.
+    let landEnd = 0;
+    for (const line of bridge.lines) for (const [x, y] of line) landEnd = Math.min(landEnd, along(x, y));
+    /** Height of the deck at a point: high over the channel, sloping down along the viaducts to the ground. */
     const deckAt = (x: number, y: number) => {
       if (!a) return bridge.deck;
-      const t = Math.abs(along(x, y) - mid);
+      const s = along(x, y);
+      const t = Math.abs(s - mid);
       const half = mid + 10;
-      return t <= half ? VDG_HIGH_DECK_M - 3 * (t / half) ** 2 : Math.max(VDG_LOW_DECK_M, VDG_HIGH_DECK_M - 3 - (t - half) * 0.036);
+      const deck = t <= half ? VDG_HIGH_DECK_M - 3 * (t / half) ** 2 : Math.max(VDG_LOW_DECK_M, VDG_HIGH_DECK_M - 3 - (t - half) * 0.036);
+      const rise = (s - landEnd) * VDG_RAMP_SLOPE;
+      // Eased at the bottom, so the deck meets the road without a kink.
+      return Math.min(deck, rise < 4 ? (rise * rise) / 8 + 0.3 : rise - 2 + 0.3);
     };
     const point = (s: number, side: number, h: number) =>
       a ? new Vector3(a[0] + ux * s + nx * side, h, -(a[1] + uy * s + ny * side)) : new Vector3();
@@ -403,12 +412,12 @@ export function VascoDaGama({ bridge }: { bridge: StreetData["bridge"] & { span?
         run += len;
         const s = along(x1, y1);
         const onMainBridge = s > 15 && s < length - 15;
-        if (run >= VDG_PIER_EVERY_M && !onMainBridge) {
+        if (run >= VDG_PIER_EVERY_M && !onMainBridge && heights[i] > 4) {
           run = 0;
           const h = heights[i];
           piers.push(new BoxGeometry(5, h, 9).rotateY(Math.atan2(y1 - y0, x1 - x0)).translate(x1, h / 2 - 2, -y1));
         }
-        if (i % Math.round(VDG_LAMP_EVERY_M / 15) === 0) {
+        if (i % Math.round(VDG_LAMP_EVERY_M / 15) === 0 && heights[i] > 1) {
           lamps.push(new BoxGeometry(1.4, 1.4, 1.4).translate(x1 + ox, heights[i] + 5, -(y1 + oy)));
         }
       }

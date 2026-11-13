@@ -174,7 +174,8 @@ def squares():
 
 
 def vasco_da_gama(view, land):
-    """The carriageways of the bridge over the river, inside the map."""
+    """The carriageways of the bridge inside the map, over the river and the viaduct on land
+    (the site ramps it down to the ground where the viaduct ends)."""
     lines, span = [], []
     for el in P.load("vasco_da_gama"):
         line = LineString(P.local_coords(el["geometry"]))
@@ -182,8 +183,7 @@ def vasco_da_gama(view, land):
         if "cable" in el.get("tags", {}).get("bridge:structure", "") and el.get("tags", {}).get("bridge"):
             ends = list(line.coords)
             span.append([[round(ends[0][0], 1), round(ends[0][1], 1)], [round(ends[-1][0], 1), round(ends[-1][1], 1)]])
-        over_water = line.difference(land.buffer(-20))
-        clipped = over_water.intersection(view)
+        clipped = line.intersection(view)
         for part in getattr(clipped, "geoms", [clipped]):
             if part.geom_type == "LineString" and part.length > 40:
                 lines.append([[round(x, 1), round(y, 1)] for x, y in part.simplify(1.0).coords])

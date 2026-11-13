@@ -18,6 +18,7 @@ Source: Câmara Municipal de Lisboa (geodados).
 """
 import importlib
 import json
+import math
 import struct
 import sys
 
@@ -149,7 +150,37 @@ def is_tunnel(tags):
     return tags.get("tunnel") == "yes" or str(tags.get("layer", "")).startswith("-")
 
 
-def train_routes(ways, view, bridge):
+def deck_share(manifest):
+    """How high the deck of the Ponte 25 de Abril is over a point, from 0 (the ground) to 1
+    (full height), as the site draws it (createDeckHeight in Bridge25.tsx): full height over
+    the river and the anchorage, coming down over Alcântara to where the road meets the ground."""
+    towers = sorted((t for t in manifest["bridgeTowers"] if t["height"] >= 150), key=lambda t: -t["y"])
+    roads = [w for w in manifest["bridge"] if w["kind"] == "road" and len(w["points"]) > 1]
+    if len(towers) < 2 or not roads:
+        return lambda x, y: 1.0
+    a, b = towers[0], towers[-1]
+    span = math.hypot(b["x"] - a["x"], b["y"] - a["y"])
+    ux, uy = (b["x"] - a["x"]) / span, (b["y"] - a["y"]) / span
+
+    def along(x, y):
+        return (x - a["x"]) * ux + (y - a["y"]) * uy
+
+    end = min(0.0, *(along(x, y) for w in roads for x, y in w["points"]))
+    top = -480.0
+    for t in manifest["bridgeTowers"]:
+        if 60 <= t["height"] < 150:
+            top = min(top, along(t["x"], t["y"]))
+    if top <= end + 100:
+        top = end + min(600, -end * 0.6)
+
+    def share(x, y):
+        c = min(1.0, max(0.0, (along(x, y) - end) / (top - end)))
+        return c * c * (3 - 2 * c)
+
+    return share
+
+
+def train_routes(ways, view, bridge, share=lambda x, y: 1.0):
     """One track of each line as [x, y, height, hidden] points.
 
     height: raised to the rail deck where the line crosses the bridge.
@@ -178,7 +209,8 @@ def train_routes(ways, view, bridge):
         xy = np.asarray(line.coords)[:, :2]
         # Only the line that crosses the river is on the bridge; the others pass underneath it.
         crosses = name == "Linha do Sul"
-        on_bridge = np.array([1.0 if crosses and bridge.contains(Point(x, y)) else 0.0 for x, y in xy])
+        # Under the road deck, as high as the road is there (it comes down over Alcântara).
+        on_bridge = np.array([share(x, y) if crosses and bridge.contains(Point(x, y)) else 0.0 for x, y in xy])
         # A gentle ramp on and off the bridge instead of a step.
         kernel = np.ones(17) / 17
         height = np.convolve(np.pad(on_bridge, 8, mode="edge"), kernel, mode="valid") * RAIL_DECK_M
@@ -288,7 +320,7 @@ def main():
     view = box(*manifest["view"])
     bridge = unary_union([LineString(w["points"]) for w in manifest["bridge"] if w["kind"] == "road"]).buffer(45)
     ways = rail_ways()
-    trains = train_routes(ways, view, bridge)
+    trains = train_routes(ways, view, bridge, deck_share(manifest))
     tracks_info = write_tracks(ways, shore, bridge)
     land = shapely.from_wkb(land_file.read_bytes()) if land_file.exists() else Polygon()
     ferries, sails = boat_routes(view, land)

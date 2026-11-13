@@ -23,6 +23,58 @@ const LEG_WIDTH_M = 6;
 const BEAMS_M = [62, 112, 150, 186];
 const HANGER_EVERY_M = 15;
 const DECK_LAMP_EVERY_M = 36;
+/** The ramp over Alcântara is resampled this often, so it can bend down to the ground. */
+const RAMP_STEP_M = 12;
+const PIER_EVERY_M = 48;
+const CONCRETE = "#b9b4aa";
+
+const smoothstep = (t: number) => {
+  const c = Math.min(1, Math.max(0, t));
+  return c * c * (3 - 2 * c);
+};
+
+/**
+ * Height of the deck over a point of the map. Over the river and the anchorage it is
+ * the deck of the bridge; north of the last tall pier the viaduct over Alcântara comes
+ * down to the ground, where the road it joins is drawn (the map is flat, the real
+ * viaduct lands on a hill).
+ */
+function createDeckHeight(manifest: Manifest) {
+  const towers = manifest.bridgeTowers.filter((t) => t.height >= 150).sort((a, b) => b.y - a.y);
+  const roads = manifest.bridge.filter((way) => way.kind === "road" && way.points.length > 1);
+  if (towers.length < 2 || !roads.length) return () => BRIDGE_DECK_M;
+  const [a, b] = [towers[0], towers[towers.length - 1]];
+  const span = Math.hypot(b.x - a.x, b.y - a.y);
+  const ux = (b.x - a.x) / span;
+  const uy = (b.y - a.y) / span;
+  const along = (x: number, y: number) => (x - a.x) * ux + (y - a.y) * uy;
+  // Where the deck meets the ground: the end of the bridge furthest north.
+  let end = 0;
+  for (const way of roads) for (const [x, y] of way.points) end = Math.min(end, along(x, y));
+  // Where it is still at full height: the northernmost tall pier on land, or the anchorage.
+  let top = -SIDE_SPAN_M;
+  for (const t of manifest.bridgeTowers) if (t.height >= 60 && t.height < 150) top = Math.min(top, along(t.x, t.y));
+  if (top <= end + 100) top = end + Math.min(600, -end * 0.6);
+  return (x: number, y: number) => BRIDGE_DECK_M * smoothstep((along(x, y) - end) / (top - end));
+}
+
+/** A line resampled every `step` metres, with the deck height at each point. */
+function resample(points: [number, number][], step: number, heightAt: (x: number, y: number) => number) {
+  const out: number[] = [];
+  const heights: number[] = [];
+  for (let i = 1; i < points.length; i++) {
+    const [x0, y0] = points[i - 1];
+    const [x1, y1] = points[i];
+    const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / step));
+    for (let k = i === 1 ? 0 : 1; k <= n; k++) {
+      const x = x0 + ((x1 - x0) * k) / n;
+      const y = y0 + ((y1 - y0) * k) / n;
+      out.push(x, y);
+      heights.push(heightAt(x, y));
+    }
+  }
+  return { points: out, heights };
+}
 
 /** One tower in its own frame: x along the bridge, z across it, y up from the water. */
 function createTowerGeometry(height: number, depth: number): BufferGeometry {
@@ -48,13 +100,50 @@ export function Bridge({ manifest }: { manifest: Manifest }) {
   // Hangers darken at night like the rest of the bridge.
   const hangerMaterial = useMemo(() => createFlatMaterial(RED, { opacity: 0.75, depthWrite: false }), []);
 
-  const decks = useMemo(
-    () =>
-      manifest.bridge
-        .filter((way) => way.kind === "road" && way.points.length > 1)
-        .map((way) => buildRibbons([{ points: way.points.flat(), cls: 0 }], [6], BRIDGE_DECK_M)),
-    [manifest],
-  );
+  const ramp = useMemo(() => {
+    const heightAt = createDeckHeight(manifest);
+    const lines = manifest.bridge
+      .filter((way) => way.kind === "road" && way.points.length > 1)
+      .map((way) => resample(way.points, RAMP_STEP_M, heightAt));
+    // Under the part of the viaduct that comes down, concrete piers; along it, lamps
+    // on the outer edge (the right of each carriageway).
+    const piers: BufferGeometry[] = [];
+    const lamps: BufferGeometry[] = [];
+    for (const { points, heights } of lines) {
+      let run = 0;
+      let lampRun = 0;
+      for (let i = 1; i < points.length / 2; i++) {
+        const dx = points[i * 2] - points[i * 2 - 2];
+        const dy = points[i * 2 + 1] - points[i * 2 - 1];
+        const len = Math.hypot(dx, dy) || 1;
+        run += len;
+        lampRun += len;
+        const h = heights[i];
+        if (h > BRIDGE_DECK_M - 1) continue;
+        const x = points[i * 2];
+        const y = points[i * 2 + 1];
+        if (run >= PIER_EVERY_M && h > 5) {
+          run = 0;
+          piers.push(new BoxGeometry(3.2, h, 7).rotateY(Math.atan2(dy, dx)).translate(x, h / 2 - 1, -y));
+        }
+        if (lampRun >= DECK_LAMP_EVERY_M && h > 1) {
+          lampRun = 0;
+          const ox = (dy / len) * 5.5;
+          const oy = (-dx / len) * 5.5;
+          lamps.push(new BoxGeometry(1.6, 1.6, 1.6).translate(x + ox, h + 6, -(y + oy)));
+        }
+      }
+    }
+    return {
+      deck: buildRibbons(
+        lines.map((l) => ({ points: l.points, heights: l.heights, cls: 0 })),
+        [6],
+        0,
+      ),
+      piers: piers.length ? mergeGeometries(piers.map((g) => g.toNonIndexed())) : null,
+      lamps: lamps.length ? mergeGeometries(lamps.map((g) => g.toNonIndexed())) : null,
+    };
+  }, [manifest]);
 
   const model = useMemo(() => {
     const towers = manifest.bridgeTowers.filter((t) => t.height >= 150).sort((a, b) => b.y - a.y);
@@ -137,9 +226,13 @@ export function Bridge({ manifest }: { manifest: Manifest }) {
 
   return (
     <>
-      {decks.map((geometry, i) => (
-        <mesh key={i} geometry={geometry} material={deckMaterial} raycast={noRaycast} frustumCulled={false} />
-      ))}
+      <mesh geometry={ramp.deck} material={deckMaterial} raycast={noRaycast} frustumCulled={false} />
+      {ramp.piers && (
+        <mesh geometry={ramp.piers} raycast={noRaycast} frustumCulled={false}>
+          <meshLambertMaterial color={CONCRETE} />
+        </mesh>
+      )}
+      {ramp.lamps && <mesh geometry={ramp.lamps} material={lampLights} renderOrder={4} raycast={noRaycast} frustumCulled={false} />}
       {model && (
         <>
           {model.towers.map((t, i) => (
@@ -166,7 +259,7 @@ export function Bridge({ manifest }: { manifest: Manifest }) {
       {others.map((t, i) => (
         <mesh key={i} position={[t.x, t.height / 2, -t.y]} raycast={noRaycast}>
           <boxGeometry args={[t.width, t.height, t.depth]} />
-          <meshLambertMaterial color="#b9b4aa" />
+          <meshLambertMaterial color={CONCRETE} />
         </mesh>
       ))}
     </>
