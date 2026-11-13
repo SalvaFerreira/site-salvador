@@ -1,7 +1,7 @@
 ---
 import City from "./City";
 import Head from "./Head.astro";
-import { CV_PATH, getAbout, getPlaces, hasCv, pathOf, SITE_NAME, type Entry } from "../lib/places";
+import { CV_IMAGE, CV_PATH, getAbout, getContact, getPerson, getPlaces, hasCv, pathOf, SITE_NAME, type Entry } from "../lib/places";
 import { CATEGORY_COLOR } from "./City";
 import "../styles/global.css";
 
@@ -12,6 +12,8 @@ interface Props {
 const { entry } = Astro.props;
 const places = await getPlaces();
 const about = await getAbout();
+const contact = await getContact();
+const person = entry ? undefined : await getPerson(Astro.site);
 const projects = places.map((e) => ({
   slug: e.id,
   path: pathOf(e),
@@ -21,6 +23,7 @@ const projects = places.map((e) => ({
   category: e.data.category,
   place: e.data.place,
   role: e.data.role,
+  tagline: e.data.tagline,
   period: e.data.period,
   coordinates: e.data.coordinates,
   kind: e.data.kind,
@@ -32,26 +35,26 @@ const projects = places.map((e) => ({
   links: e.data.links,
   html: e.rendered?.html ?? "",
 }));
-const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Personal website of ${SITE_NAME}.`;
+const description = entry ? `${entry.data.title} — ${entry.data.place}` : about.masthead;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
-    <Head title={entry?.data.title} description={description} image={entry?.id} />
+    <Head title={entry?.data.title} description={description} image={entry?.id} jsonLd={person} />
     <script is:inline>
       // ?shot hides the interface, for taking the preview images.
       if (new URLSearchParams(location.search).has("shot")) document.documentElement.classList.add("shot");
     </script>
   </head>
   <body class="city-page">
-    <City client:only="react" projects={projects} initialPath={entry ? pathOf(entry) : undefined} />
+    <City client:only="react" projects={projects} initialPath={entry ? pathOf(entry) : undefined} email={contact.email} linkedin={contact.linkedin} />
 
     <header class="topbar">
       <a class="name" href="/">{SITE_NAME}</a>
       <p class="thesis">{about.masthead}</p>
       <nav aria-label="Site">
-        {hasCv && <a href={CV_PATH} target="_blank" rel="noopener">CV</a>}
+        {hasCv && <a href={CV_PATH} class="cv-open">CV</a>}
         <button type="button" id="tour-start" hidden>Tour</button>
         <a href="/contact" id="contact-link">Contact</a>
       </nav>
@@ -90,7 +93,8 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Per
       <div class="intro-text" set:html={about.html} />
       <p class="intro-actions">
         <button type="button" id="intro-tour">Start the tour</button>
-        {hasCv && <a href={CV_PATH} target="_blank" rel="noopener">CV</a>}
+        {contact.email && <a class="email-button" href={contact.email}>Email me</a>}
+        {hasCv && <a href={CV_PATH} class="cv-open">CV</a>}
       </p>
     </section>
     <script is:inline>
@@ -119,6 +123,43 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Per
         // The city starts the tour itself (City.tsx); the card only has to go.
         document.getElementById("intro-tour").addEventListener("click", close);
         // Opening a place also puts the card away (City.tsx hides it).
+      })();
+    </script>
+
+    {
+      hasCv && (
+        <dialog class="cv-dialog" id="cv-dialog" aria-labelledby="cv-title">
+          <div class="cv-bar">
+            <h2 id="cv-title">CV</h2>
+            <a class="cv-download" href={CV_PATH} download="Salvador-Ferreira-CV.pdf">Download PDF</a>
+            <button type="button" class="cv-close" id="cv-close">Close</button>
+          </div>
+          <div class="cv-page">
+            <img src={CV_IMAGE} alt={`CV of ${SITE_NAME}`} width="1405" height="1988" loading="lazy" />
+          </div>
+        </dialog>
+      )
+    }
+    <script is:inline>
+      // The CV opens in a window over the city (without JavaScript the links open the PDF).
+      (function () {
+        var dialog = document.getElementById("cv-dialog");
+        if (!dialog || !dialog.showModal) return;
+        document.addEventListener("click", function (event) {
+          var link = event.target.closest && event.target.closest(".cv-open");
+          if (!link) return;
+          event.preventDefault();
+          var intro = document.getElementById("intro");
+          if (intro) intro.hidden = true;
+          dialog.showModal();
+        });
+        document.getElementById("cv-close").addEventListener("click", function () {
+          dialog.close();
+        });
+        // A click on the dimmed backdrop closes it too.
+        dialog.addEventListener("click", function (event) {
+          if (event.target === dialog) dialog.close();
+        });
       })();
     </script>
 

@@ -2,11 +2,12 @@
 // Everything on the site as plain text, in reading order.
 import { render } from "astro:content";
 import Head from "../components/Head.astro";
-import { CV_PATH, getAbout, getPlaces, hasCv, pathOf, SITE_NAME } from "../lib/places";
+import { CV_PATH, getAbout, getPerson, getPlaces, hasCv, pathOf, SITE_NAME } from "../lib/places";
 import "../styles/global.css";
 
 const places = await getPlaces();
 const about = await getAbout();
+const person = await getPerson(Astro.site);
 const sections = await Promise.all(
   places.map(async (entry) => ({ entry, Content: (await render(entry)).Content })),
 );
@@ -15,7 +16,7 @@ const sections = await Promise.all(
 <!doctype html>
 <html lang="en">
   <head>
-    <Head title="List" description={`Everything on the website of ${SITE_NAME}, as plain text.`} />
+    <Head title="List" description={`Everything on the website of ${SITE_NAME}, as plain text.`} jsonLd={person} />
   </head>
   <body class="list-page">
     <main>

@@ -4,6 +4,8 @@ label: "Iscte Junior Consulting"
 category: "job"
 place: "Cidade Universitária"
 role: "Analytics Consultant & Vice-President of the Fiscal Council"
+# Shorter role for the map label.
+tagline: "Analytics Consultant"
 period: "Oct 2023 – Jan 2025"
 # Iscte campus, Avenida das Forças Armadas (approximate building).
 coordinates: [-9.15275, 38.74790]

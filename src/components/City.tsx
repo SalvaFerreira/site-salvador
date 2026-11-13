@@ -29,6 +29,8 @@ export interface Project {
   category?: Category;
   place: string;
   role?: string;
+  /** Short role for the map label. */
+  tagline?: string;
   period?: string;
   coordinates: [number, number];
   /** When it started (ISO), if known. */
@@ -818,8 +820,8 @@ export const TODO = "TODO: texto do Salvador";
 
 /** "AI & Data Analyst · 2026", from the role and the start date in the content files. */
 function labelLine(p: Project): string {
-  if (!p.role) return TODO;
-  const role = p.role.split(" · ")[0];
+  if (!p.role && !p.tagline) return TODO;
+  const role = p.tagline ?? p.role!.split(" · ")[0];
   return p.date ? `${role} · ${new Date(p.date).getUTCFullYear()}` : role;
 }
 
@@ -870,7 +872,17 @@ function usePageButton(id: string, enabled: boolean, onPress: (event: Event) => 
   }, [id, enabled]);
 }
 
-export default function City({ projects, initialPath }: { projects: Project[]; initialPath?: string }) {
+export default function City({
+  projects,
+  initialPath,
+  email,
+  linkedin,
+}: {
+  projects: Project[];
+  initialPath?: string;
+  email?: string;
+  linkedin?: string;
+}) {
   const live = useMemo(canRunCity, []);
   const stops = useMemo(() => toStops(projects), [projects]);
   const [touring, setTouring] = useState(false);
@@ -1065,6 +1077,8 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
           projects={stop.members.map((m) => projects[m])}
           active={current.slug}
           onClose={close}
+          email={email}
+          linkedin={linkedin}
           tour={
             touring
               ? {

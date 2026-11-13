@@ -16,6 +16,8 @@ const projects = defineCollection({
     place: z.string(),
     /** Position held or degree, and when: shown under the title. */
     role: z.string().optional(),
+    /** Shorter version of the role for the map label, when the role is long. */
+    tagline: z.string().optional(),
     period: z.string().optional(),
     /** [longitude, latitude] of the building (or spot) to mark. */
     coordinates: z.tuple([z.number(), z.number()]),

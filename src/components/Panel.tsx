@@ -22,9 +22,12 @@ interface Props {
   active: string;
   onClose: () => void;
   tour?: Tour;
+  /** mailto: link and LinkedIn profile, offered at the end of every panel. */
+  email?: string;
+  linkedin?: string;
 }
 
-export default function Panel({ stop, projects, active, onClose, tour }: Props) {
+export default function Panel({ stop, projects, active, onClose, tour, email, linkedin }: Props) {
   const heading = useRef<HTMLHeadingElement>(null);
   const first = projects[0];
   const shared = projects.length > 1;
@@ -111,6 +114,22 @@ export default function Panel({ stop, projects, active, onClose, tour }: Props) 
           )}
         </section>
       ))}
+
+      {/* Getting in touch is one step from anywhere (the contact panel has its own links). */}
+      {first.kind !== "contact" && (email || linkedin) && (
+        <p className="panel-contact">
+          {email && (
+            <a className="email-button" href={email}>
+              Email me
+            </a>
+          )}
+          {linkedin && (
+            <a href={linkedin} target="_blank" rel="noopener">
+              LinkedIn
+            </a>
+          )}
+        </p>
+      )}
     </aside>
   );
 }

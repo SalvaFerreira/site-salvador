@@ -8,9 +8,11 @@ interface Props {
   description: string;
   /** Name of the preview image in public/og/, without extension. */
   image?: string;
+  /** schema.org data about the page, written as JSON-LD. */
+  jsonLd?: Record<string, unknown>;
 }
 
-const { title, description, image } = Astro.props;
+const { title, description, image, jsonLd } = Astro.props;
 const fullTitle = title ? `${title} — ${SITE_NAME}` : SITE_NAME;
 const base = Astro.site ?? Astro.url;
 const canonical = new URL(Astro.url.pathname, base);
@@ -33,4 +35,5 @@ const imageUrl = new URL(`/og/${preview}.jpg`, base);
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
+{jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
 <Analytics />
