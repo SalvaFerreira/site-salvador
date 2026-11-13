@@ -1,7 +1,7 @@
 ---
 // Everything on the site as plain text, in reading order.
 import Head from "../components/Head.astro";
-import { CV_PATH, getAbout, getPerson, getPlaces, hasCv, htmlOf, pathOf, SITE_NAME } from "../lib/places";
+import { CV_PATH, getAbout, getPerson, getPlaces, hasCv, htmlOf, pathOf, PORTRAIT, SITE_NAME } from "../lib/places";
 import "../styles/global.css";
 
 const places = await getPlaces();
@@ -18,7 +18,10 @@ const sections = places.map((entry) => ({ entry, html: htmlOf(entry.rendered) })
   <body class="list-page">
     <main>
       <header>
-        <h1>{SITE_NAME}</h1>
+        <div class="list-head">
+          <img class="portrait" src={PORTRAIT} alt={`Photo of ${SITE_NAME}`} width="72" height="72" />
+          <h1>{SITE_NAME}</h1>
+        </div>
         <div class="list-about" set:html={about.html} />
         <p class="list-links">
           <a href="/">City</a>

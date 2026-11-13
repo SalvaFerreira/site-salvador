@@ -1,7 +1,7 @@
 ---
 import City from "./City";
 import Head from "./Head.astro";
-import { CV_IMAGE, CV_PATH, getAbout, getContact, getHomeTitle, getPerson, getPlaces, htmlOf, hasCv, pathOf, SITE_NAME, type Entry } from "../lib/places";
+import { CV_IMAGE, CV_PATH, getAbout, getContact, getHomeTitle, getPerson, getPlaces, htmlOf, PORTRAIT, hasCv, pathOf, SITE_NAME, type Entry } from "../lib/places";
 import { CATEGORY_COLOR } from "./City";
 import "../styles/global.css";
 
@@ -106,7 +106,10 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
     {/* Welcome card: on the first visit of a session to the home page only, never on a project's own address. */}
     <section class="intro" id="intro" role="dialog" aria-labelledby="intro-title" tabindex="-1" data-home={entry ? "no" : "yes"} hidden>
       <button type="button" class="intro-close" id="intro-close">Close</button>
-      <h2 id="intro-title">{SITE_NAME}</h2>
+      <div class="intro-head">
+        <img class="portrait" src={PORTRAIT} alt="" width="64" height="64" />
+        <h2 id="intro-title">{SITE_NAME}</h2>
+      </div>
       <div class="intro-text" set:html={about.html} />
       <p class="intro-actions">
         <button type="button" id="intro-tour">Start the tour</button>

@@ -387,6 +387,32 @@ button:focus-visible {
   outline: none;
 }
 
+.intro-head,
+.list-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.portrait {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.list-head .portrait {
+  width: 72px;
+  height: 72px;
+}
+
+.intro-head h2,
+.list-head h1 {
+  margin: 0 !important;
+}
+
 .intro h2 {
   margin: 0 0 10px;
   font: 400 28px/1.2 var(--serif);
