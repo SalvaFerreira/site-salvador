@@ -1,6 +1,9 @@
-// Buildings as an architect's model: cream and white facades, soft terracotta
-// roofs, quiet windows, all drawn procedurally (no textures). Only Salvador's
-// buildings are in colour, all in the same accent, with a darker outline.
+// Buildings as an architect's model, drawn procedurally (no textures): soft
+// terracotta roofs and facades that change with the part of the city. In the
+// old centre, Lisbon colours, tall narrow windows, a stone base, light stone
+// corners and some tiled (azulejo) fronts; towers with bands of windows or
+// glass; long low sheds in ribbed metal; elsewhere whites, creams and pastels.
+// Salvador's buildings are in colour, all in the same accent, with a darker outline.
 import { Color, ShaderMaterial } from "three";
 import { shared } from "./environment";
 
@@ -15,6 +18,7 @@ varying vec4 vWall;
 varying float vSeed;
 varying float vRoof;
 varying float vSun;
+varying vec2 vMap;
 
 // Afternoon sun from the west-south-west: from the camera it lights the walls
 // facing south and leaves the ones facing east, and the streets beside them, in shade.
@@ -26,12 +30,18 @@ void main() {
   // Roofs face up; the steep faces of a dome or a spire are marked as roof by wall.z < 0.
   vRoof = max(step(0.5, normal.y), step(wall.z, -0.5));
   vSun = dot(normalize(normal), SUN);
+  // Where in the city (metres east and north of Praça do Comércio).
+  vec4 world = modelMatrix * vec4(position, 1.0);
+  vMap = vec2(world.x, -world.z);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
 
 const fragmentShader = /* glsl */ `
-uniform vec3 uWalls[5];
+uniform vec3 uWalls[7];
+uniform vec3 uOldWalls[6];
+uniform vec3 uTile;
+uniform vec3 uStone;
 uniform vec3 uRoofA;
 uniform vec3 uRoofB;
 uniform vec3 uRoofC;
@@ -49,6 +59,7 @@ varying vec4 vWall;
 varying float vSeed;
 varying float vRoof;
 varying float vSun;
+varying vec2 vMap;
 
 const float FLOOR_H = 3.0;
 const float WINDOW_W = 2.6;
@@ -98,10 +109,24 @@ void main() {
     float up = vWall.y;
     float len = vWall.z;
 
-    // Each building takes one of five facade colours, white and cream most often.
+    // What kind of building this is, from where it stands and its height.
+    // The old centre (Baixa, Alfama, Mouraria, Bairro Alto, Madragoa) is within about 2 km.
+    float historic = 1.0 - smoothstep(1700.0, 2600.0, length(vMap - vec2(-300.0, 250.0)));
+    float tower = step(30.0, height);
+    float style = hash(vec3(seed * 13.7, 8.1, 3.3));
+    float old = step(style, historic * 0.92) * (1.0 - tower);
+    float shed = step(45.0, len) * step(height, 10.5) * (1.0 - old);
+    float azulejo = old * step(hash(vec3(seed * 61.1, 2.2, 7.4)), 0.17);
+    float glassy = tower * step(hash(vec3(seed * 23.9, 1.4, 6.6)), 0.4);
+
+    // Facade colour: Lisbon colours in the old centre, whites, creams and pastels elsewhere.
     float pick = hash(vec3(seed * 53.9, 9.2, 2.3));
-    int which = pick < 0.44 ? 0 : pick < 0.76 ? 1 : pick < 0.86 ? 2 : pick < 0.94 ? 3 : 4;
+    int which = pick < 0.34 ? 0 : pick < 0.6 ? 1 : pick < 0.7 ? 2 : pick < 0.78 ? 3 : pick < 0.85 ? 4 : pick < 0.93 ? 5 : 6;
     vec3 facade = uWalls[which];
+    int oldWhich = int(min(5.0, floor(hash(vec3(seed * 7.9, 4.7, 9.1)) * 6.0)));
+    facade = mix(facade, uOldWalls[oldWhich], old);
+    facade = mix(facade, vec3(0.86, 0.87, 0.86), shed);
+    facade = mix(facade, vec3(0.66, 0.74, 0.8), glassy);
     // No two buildings quite the same: a little lighter or darker, a little warmer or cooler.
     float shade = hash(vec3(seed * 17.3, 3.1, 7.7)) - 0.5;
     float warmth = hash(vec3(seed * 41.9, 5.3, 1.1)) - 0.5;
@@ -117,6 +142,25 @@ void main() {
     light *= mix(0.66, 1.0, smoothstep(0.0, 7.0, up));
     color = facade * light * mix(vec3(0.94, 0.97, 1.04), vec3(1.03, 1.0, 0.95), sunny);
 
+    // Close-up texture of the wall, faded out with distance like the windows.
+    float wallSize = max(fwidth(along), fwidth(up));
+    float near = 1.0 - smoothstep(0.08, 0.3, wallSize);
+    // Azulejo: small white and blue tiles with a dotted pattern; from afar, a blue-tinted wall.
+    {
+      vec2 t = vec2(along, up) / 0.5;
+      float motif = step(0.35, abs(sin(t.x * 3.1416) * sin(t.y * 3.1416)));
+      vec3 tiles = mix(vec3(0.93, 0.94, 0.95), uTile, mix(0.35, motif, near));
+      color = mix(color, tiles * light, azulejo * (1.0 - lit) * (1.0 - off));
+    }
+    // Old buildings: a stone base on the ground floor and light stone corners.
+    {
+      float base = 1.0 - step(FLOOR_H * 0.85, up);
+      float corner = max(1.0 - step(0.7, along), step(len - 0.7, along));
+      color = mix(color, uStone * light, max(base, corner) * old * (1.0 - lit) * (1.0 - off) * 0.85);
+    }
+    // Sheds: ribbed metal.
+    color *= 1.0 - shed * near * 0.08 * step(0.5, fract(along / 0.9));
+
     float floors = floor(height / FLOOR_H);
     float columns = floor(len / WINDOW_W);
     if (floors >= 1.0 && columns >= 1.0) {
@@ -125,9 +169,17 @@ void main() {
       vec2 f = fract(cell);
 
       vec2 fw = fwidth(cell);
-      vec2 edge = smoothstep(vec2(0.26, 0.26) - fw, vec2(0.26, 0.26) + fw, f)
-                * (1.0 - smoothstep(vec2(0.74, 0.80) - fw, vec2(0.74, 0.80) + fw, f));
-      float mask = edge.x * edge.y * step(id.y, floors - 0.5);
+      // Window shape: tall and narrow in old buildings, a continuous band in towers,
+      // only a strip under the roof in sheds, square-ish elsewhere.
+      vec2 lo = mix(vec2(0.26, 0.26), vec2(0.33, 0.14), old);
+      vec2 hi = mix(vec2(0.74, 0.80), vec2(0.67, 0.86), old);
+      lo = mix(lo, vec2(0.04, 0.3), tower);
+      hi = mix(hi, vec2(0.96, 0.86), tower);
+      lo = mix(lo, vec2(0.1, 0.55), shed);
+      hi = mix(hi, vec2(0.9, 0.8), shed);
+      vec2 edge = smoothstep(lo - fw, lo + fw, f) * (1.0 - smoothstep(hi - fw, hi + fw, f));
+      float onlyTop = 1.0 - shed * (1.0 - step(floors - 1.5, id.y));
+      float mask = edge.x * edge.y * step(id.y, floors - 0.5) * onlyTop;
 
       // Far away a window is smaller than a pixel: fade to the average tone
       // of the wall instead of shimmering.
@@ -201,8 +253,23 @@ export function createBuildingMaterial(): ShaderMaterial {
           new Color("#efd49a"), // Lisbon yellow, softened
           new Color("#ecc8b9"), // pink
           new Color("#d3dee6"), // pale blue
+          new Color("#e6e2da"), // light grey
+          new Color("#e2d6c2"), // beige
         ],
       },
+      // The old centre: ochre, rose, terracotta, pale green, blue and a warm white.
+      uOldWalls: {
+        value: [
+          new Color("#ecc77e"),
+          new Color("#e7b4a2"),
+          new Color("#d99a7c"),
+          new Color("#cfdcc8"),
+          new Color("#c6d4e2"),
+          new Color("#f2e8d4"),
+        ],
+      },
+      uTile: { value: new Color("#4a73a8") },
+      uStone: { value: new Color("#dcd5c6") },
       uRoofA: { value: new Color("#c98466") },
       uRoofB: { value: new Color("#d79e80") },
       uRoofC: { value: new Color("#ad7a66") },
