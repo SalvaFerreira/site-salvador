@@ -1,7 +1,7 @@
 ---
 import City from "./City";
 import Head from "./Head.astro";
-import { CV_IMAGE, CV_PATH, getAbout, getContact, getHomeTitle, getPerson, getPlaces, htmlOf, PORTRAIT, hasCv, pathOf, SITE_NAME, type Entry } from "../lib/places";
+import { CV_IMAGE, CV_PATH, getContact, getHomeTitle, getPerson, getPlaces, getProfile, htmlOf, PORTRAIT, hasCv, pathOf, SITE_NAME, type Entry } from "../lib/places";
 import { CATEGORY_COLOR } from "./City";
 import "../styles/global.css";
 
@@ -11,7 +11,7 @@ interface Props {
 
 const { entry } = Astro.props;
 const places = await getPlaces();
-const about = await getAbout();
+const profile = await getProfile();
 const contact = await getContact();
 const person = entry ? undefined : await getPerson(Astro.site);
 const homeTitle = await getHomeTitle();
@@ -37,7 +37,7 @@ const projects = places.map((e) => ({
   links: e.data.links,
   html: htmlOf(e.rendered),
 }));
-const description = entry ? `${entry.data.title} — ${entry.data.place}` : about.masthead;
+const description = entry ? `${entry.data.title} — ${entry.data.place}` : `${profile.role} in Lisbon. ${profile.headline}`;
 ---
 
 <!doctype html>
@@ -52,7 +52,7 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
   <body class="city-page">
     <City client:only="react" projects={projects} initialPath={entry ? pathOf(entry) : undefined} email={contact.email} linkedin={contact.linkedin} homeTitle={homeTitle} />
 
-    <header class="topbar">
+    <header class="topbar" id="topbar">
       {
         entry ? (
           <a class="name" href="/">
@@ -68,7 +68,26 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
           </h1>
         )
       }
-      <p class="thesis">{about.masthead}</p>
+      {/* The profile in a few seconds: role, one line, strengths and tools. Folds away (script below). */}
+      <p class="topbar-role">{profile.role} · Lisbon</p>
+      <p class="thesis">{profile.headline}</p>
+      <div class="topbar-more" id="topbar-more">
+        <ul class="topbar-strengths" aria-label="Strengths">
+          {
+            profile.strengths.map((s) => (
+              <li>
+                <strong>{s.title.split(" for ")[0]}</strong> — {s.short}
+              </li>
+            ))
+          }
+        </ul>
+        <ul class="topbar-skills" aria-label="Main tools">
+          {profile.keySkills.map((skill) => <li>{skill}</li>)}
+        </ul>
+      </div>
+      <button type="button" class="topbar-toggle" id="topbar-toggle" aria-expanded="true" aria-controls="topbar-more">
+        Hide details
+      </button>
       <nav aria-label="Site">
         {hasCv && <a href={CV_PATH} class="cv-open">CV</a>}
         <a href="/profile">Profile</a>
@@ -146,46 +165,30 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
       ><span class="attr-short"> · CM Lisboa</span>
     </p>
 
-    {/* Welcome card: on the first visit of a session to the home page only, never on a project's own address. */}
-    <section class="intro" id="intro" role="dialog" aria-labelledby="intro-title" tabindex="-1" data-home={entry ? "no" : "yes"} hidden>
-      <button type="button" class="intro-close" id="intro-close">Close</button>
-      <div class="intro-head">
-        <img class="portrait" src={PORTRAIT} alt="" width="64" height="64" />
-        <h2 id="intro-title">{SITE_NAME}</h2>
-      </div>
-      <div class="intro-text" set:html={about.html} />
-      <p class="intro-actions">
-        <button type="button" id="intro-tour">Start the tour</button>
-        {contact.email && <a class="email-button" href={contact.email}>Email me</a>}
-        {hasCv && <a href={CV_PATH} class="cv-open">CV</a>}
-      </p>
-    </section>
     <script is:inline>
+      // The profile card folds to its first lines: open by default on wide screens, folded on
+      // phones and short screens (so all the places still fit on the map), and remembered for the visit.
       (function () {
-        var card = document.getElementById("intro");
-        var key = "intro-seen";
-        var seen = false;
+        var bar = document.getElementById("topbar");
+        var button = document.getElementById("topbar-toggle");
+        var key = "profile-card";
+        var saved = null;
         try {
-          seen = sessionStorage.getItem(key) === "1";
+          saved = sessionStorage.getItem(key);
         } catch (e) {}
-        if (seen || card.dataset.home !== "yes" || document.documentElement.classList.contains("shot")) return;
-        try {
-          sessionStorage.setItem(key, "1");
-        } catch (e) {}
-        card.hidden = false;
-        card.focus();
-        function close() {
-          card.hidden = true;
-          document.removeEventListener("keydown", onKey);
+        function set(open) {
+          bar.classList.toggle("is-folded", !open);
+          button.setAttribute("aria-expanded", open ? "true" : "false");
+          button.textContent = open ? "Hide details" : "Strengths and tools";
         }
-        function onKey(event) {
-          if (event.key === "Escape") close();
-        }
-        document.addEventListener("keydown", onKey);
-        document.getElementById("intro-close").addEventListener("click", close);
-        // The city starts the tour itself (City.tsx); the card only has to go.
-        document.getElementById("intro-tour").addEventListener("click", close);
-        // Opening a place also puts the card away (City.tsx hides it).
+        set(saved ? saved === "open" : window.innerWidth > 700 && window.innerHeight >= 760);
+        button.addEventListener("click", function () {
+          var open = bar.classList.contains("is-folded");
+          set(open);
+          try {
+            sessionStorage.setItem(key, open ? "open" : "folded");
+          } catch (e) {}
+        });
       })();
     </script>
 
@@ -212,8 +215,6 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
           var link = event.target.closest && event.target.closest(".cv-open");
           if (!link) return;
           event.preventDefault();
-          var intro = document.getElementById("intro");
-          if (intro) intro.hidden = true;
           dialog.showModal();
         });
         document.getElementById("cv-close").addEventListener("click", function () {

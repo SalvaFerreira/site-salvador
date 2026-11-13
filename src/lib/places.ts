@@ -26,11 +26,11 @@ export function pathOf(entry: Entry): string {
   return entry.data.kind === "work" ? `/work/${entry.id}` : `/${entry.data.kind}`;
 }
 
-/** The presentation text from src/content/site/about.md: one line, and the full text as HTML. */
-export async function getAbout(): Promise<{ masthead: string; html: string }> {
+/** The presentation text from src/content/site/about.md, as HTML. */
+export async function getAbout(): Promise<{ html: string }> {
   const entry = await getEntry("site", "about");
   if (!entry) throw new Error("src/content/site/about.md is missing");
-  return { masthead: entry.data.masthead, html: htmlOf(entry.rendered) };
+  return { html: htmlOf(entry.rendered) };
 }
 
 /** Email address and LinkedIn profile, from the links of the contact entry. */

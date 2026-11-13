@@ -54,13 +54,14 @@ const projects = defineCollection({
 const site = defineCollection({
   loader: glob({ pattern: "**/*.md", base: "./src/content/site" }),
   schema: z.object({
-    masthead: z.string(),
     /** The role Salvador is looking for, first in the profile and the structured data. */
     role: z.string(),
     /** One line: what he is and what he does. */
     headline: z.string(),
     /** Three strengths, each with its proof. */
-    strengths: z.array(z.object({ title: z.string(), proof: z.string() })),
+    strengths: z.array(z.object({ title: z.string(), short: z.string(), proof: z.string() })),
+    /** The tools shown first, on the card in the city. */
+    keySkills: z.array(z.string()),
     /** Tools and skills, in groups. */
     skills: z.array(z.object({ group: z.string(), items: z.array(z.string()) })),
     languages: z.array(z.object({ name: z.string(), level: z.string() })),

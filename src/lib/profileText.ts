@@ -70,7 +70,7 @@ export async function buildLlmsTxt(site: URL): Promise<string> {
   return [
     `# ${SITE_NAME}`,
     "",
-    `> ${profile.headline} Based in Lisbon, Portugal. The full profile (strengths, skills, experience, education, projects) is at ${abs("/profile.md")}.`,
+    `> ${profile.role} based in Lisbon, Portugal. ${profile.headline} The full profile (strengths, skills, experience, education, projects) is at ${abs("/profile.md")}.`,
     "",
     "## Profile",
     "",

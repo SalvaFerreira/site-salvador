@@ -45,7 +45,7 @@ const external = (url: string) => (url.startsWith("http") ? { target: "_blank", 
 <!doctype html>
 <html lang="en">
   <head>
-    <Head title="Profile" description={`${profile.headline} Lisbon, Portugal.`} jsonLd={person} />
+    <Head title="Profile" description={`${profile.role} in Lisbon, Portugal. ${profile.headline}`} jsonLd={person} />
   </head>
   <body class="profile-page">
     <main>

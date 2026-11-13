@@ -392,7 +392,8 @@ function CameraRig({ place, overview, reducedMotion, view, panelOpen, api }: Rig
     }
     // Tight around the places: labels near the sides are kept on screen by LabelPositioner.
     const sides = Math.min(60, size.width * 0.04);
-    const top = (document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 100) + 50;
+    // Labels stand above their spots, so a little room under the top bar (now the profile card) is enough.
+    const top = (document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 100) + 30;
     const bottom = 70;
     const zoom = Math.min(
       MAX_ZOOM,
@@ -1095,17 +1096,11 @@ export default function City({
   usePageButton("zoom-out", live, () => api.current?.zoomBy(1 / 1.6));
   usePageButton("go-home", live, () => api.current?.home());
   usePageButton("tour-start", true, startTour);
-  usePageButton("intro-tour", true, startTour);
 
   // On phones the map controls step aside while a panel is open (global.css).
   useEffect(() => {
     document.documentElement.classList.toggle("panel-open", stop !== null);
   }, [stop]);
-
-  // The welcome card (CityPage.astro) gives way to any place that opens.
-  useEffect(() => {
-    if (selected >= 0) document.getElementById("intro")?.setAttribute("hidden", "");
-  }, [selected]);
 
   // Keyboard: + and - zoom, Home shows all the places, arrows slide the map
   // (or step through the tour while it is running).
