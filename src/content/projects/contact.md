@@ -8,8 +8,8 @@ coordinates: [-9.1364, 38.7075]
 order: 10
 stack: []
 links:
-  - label: "salvador.bras.ferreira@gmail.com"
-    url: "mailto:salvador.bras.ferreira@gmail.com"
+  - label: "hello@salvadorferreira.me"
+    url: "mailto:hello@salvadorferreira.me"
   - label: "LinkedIn"
     url: "https://www.linkedin.com/in/salvador-ferreira-83384a251/"
 ---
