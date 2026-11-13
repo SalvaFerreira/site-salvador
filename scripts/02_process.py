@@ -50,6 +50,7 @@ from shapely.geometry import LineString, MultiPolygon, Point, Polygon, box
 from shapely.geometry.polygon import orient
 from shapely.ops import linemerge, polygonize, unary_union
 
+import height_model as H
 from config import (
     CRS_METRIC, EAST, EXTRA_STRIPS, LEVEL_HEIGHT_M, MIN_AREA_M2, NORTH, ORIGIN_LAT, ORIGIN_LON,
     OUT, RAW, SIMPLIFY_M, SOUTH, TILES, WEST,
@@ -233,8 +234,12 @@ def simplify(poly):
     return simple
 
 
+# Scores of the height model in the last run, for the manifest.
+HEIGHT_REPORT = {}
+
+
 def assign_heights(gdf):
-    """Height from the height tag, else levels x 3 m, else estimated from neighbours."""
+    """Height from the height tag, else levels x 3 m, else predicted by a model trained on those."""
     height = np.full(len(gdf), np.nan)
     source = np.full(len(gdf), "estimated", dtype=object)
 
@@ -248,20 +253,12 @@ def assign_heights(gdf):
 
     known = ~np.isnan(height)
     small = ~known & (gdf["kind"].isin(SMALL_TYPES) | (gdf["area"] < 40)).to_numpy()
-    height[small] = LEVEL_HEIGHT_M
 
-    # Remaining: median height of the nearest tagged buildings within 250 m.
-    xy = np.column_stack([gdf.geometry.centroid.x, gdf.geometry.centroid.y])
-    todo = np.isnan(height)
-    tree = cKDTree(xy[known])
-    known_h = height[known]
-    dist, idx = tree.query(xy[todo], k=8, distance_upper_bound=250)
-    neighbours = np.where(np.isfinite(dist), known_h[np.minimum(idx, len(known_h) - 1)], np.nan)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)  # rows with no tagged neighbour
-        estimate = np.nanmedian(neighbours, axis=1)
-    estimate[np.isnan(estimate)] = 3 * LEVEL_HEIGHT_M
-    height[todo] = estimate
+    # The rest: learnt from the tagged buildings (see height_model.py).
+    height, report = H.fit_and_predict(gdf, height, known)
+    height[small] = LEVEL_HEIGHT_M
+    HEIGHT_REPORT.clear()
+    HEIGHT_REPORT.update(report)
 
     gdf["height"] = np.clip(np.round(height), 3, 255).astype(np.uint8)
     gdf["height_source"] = source
@@ -526,6 +523,8 @@ def main():
     b["min_height"] = np.minimum(b["min_height"], b["height"].astype(float) - 1).clip(0).round().astype(np.uint8)
     b["roof"] = b["roof"].fillna(ROOF_AUTO).astype(np.uint8)
     stats["heightSource"] = {k: int(v) for k, v in b["height_source"].value_counts().items()}
+    stats["heightModel"] = dict(HEIGHT_REPORT)
+    print("  height model:", json.dumps(HEIGHT_REPORT["model"]), "previous method:", json.dumps(HEIGHT_REPORT["previousMethod"]))
 
     print("Simplifying")
     verts_before = int(b.geometry.count_coordinates().sum())
