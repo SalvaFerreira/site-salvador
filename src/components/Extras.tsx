@@ -1,6 +1,5 @@
 // The parts of the scene that are not buildings: parks and trees, cars,
-// and the bridge.
-import { Line } from "@react-three/drei";
+// and (from Bridge25.tsx) the bridge.
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -23,7 +22,6 @@ import { buildRibbons } from "../city/lines";
 import { loadShapes, SHADOW_PER_M, type Manifest } from "../city/loadCity";
 
 const noRaycast = () => null;
-type Point3 = [number, number, number];
 
 /** Small repeatable random generator, so the city looks the same on every visit. */
 export function randomFrom(seed: number): () => number {
@@ -358,69 +356,5 @@ export function Parks({ plan, cover }: ParksProps) {
 
 // ---------------------------------------------------------------- bridge
 
-export const BRIDGE_DECK_M = 70;
-const CABLE_SIDE_SPAN_M = 480;
-const BRIDGE_RED = "#b4705f";
-
-/** Ponte 25 de Abril: deck with traffic, red towers and main cables. */
-export function Bridge({ manifest }: { manifest: Manifest }) {
-  const decks = useMemo(() => {
-    const material = createTrafficMaterial();
-    return manifest.bridge
-      .filter((way) => way.kind === "road" && way.points.length > 1)
-      .map((way) => ({
-        geometry: buildRibbons([{ points: way.points.flat(), cls: 0 }], [6], BRIDGE_DECK_M),
-        material,
-      }));
-  }, [manifest]);
-
-  const cables = useMemo(() => {
-    const towers = manifest.bridgeTowers.filter((t) => t.height >= 150).sort((a, b) => b.y - a.y);
-    if (towers.length < 2) return [];
-    const [a, b] = [towers[0], towers[towers.length - 1]];
-    const span = Math.hypot(b.x - a.x, b.y - a.y);
-    const ux = (b.x - a.x) / span;
-    const uy = (b.y - a.y) / span;
-    const top = Math.min(a.height, b.height);
-    const low = BRIDGE_DECK_M + 8;
-    const lines: Point3[][] = [];
-    for (const offset of [-10, 10]) {
-      const ox = -uy * offset;
-      const oy = ux * offset;
-      const at = (d: number, h: number): Point3 => [a.x + ux * d + ox, h, -(a.y + uy * d + oy)];
-      const line: Point3[] = [];
-      // Anchor span, main span between the towers, anchor span.
-      for (let i = 0; i <= 12; i++) {
-        const t = i / 12;
-        line.push(at(-CABLE_SIDE_SPAN_M * (1 - t), BRIDGE_DECK_M + (top - BRIDGE_DECK_M) * t * t));
-      }
-      for (let i = 1; i <= 32; i++) {
-        const t = i / 32;
-        line.push(at(span * t, low + (top - low) * (2 * t - 1) ** 2));
-      }
-      for (let i = 1; i <= 12; i++) {
-        const t = i / 12;
-        line.push(at(span + CABLE_SIDE_SPAN_M * t, BRIDGE_DECK_M + (top - BRIDGE_DECK_M) * (1 - t) ** 2));
-      }
-      lines.push(line);
-    }
-    return lines;
-  }, [manifest]);
-
-  return (
-    <>
-      {decks.map((deck, i) => (
-        <mesh key={i} geometry={deck.geometry} material={deck.material} raycast={noRaycast} frustumCulled={false} />
-      ))}
-      {cables.map((points, i) => (
-        <Line key={i} points={points} color={BRIDGE_RED} lineWidth={2} />
-      ))}
-      {manifest.bridgeTowers.map((t, i) => (
-        <mesh key={i} position={[t.x, t.height / 2, -t.y]} raycast={noRaycast}>
-          <boxGeometry args={[t.width, t.height, t.depth]} />
-          <meshLambertMaterial color={t.height >= 150 ? BRIDGE_RED : "#b9b4aa"} />
-        </mesh>
-      ))}
-    </>
-  );
-}
+// The Ponte 25 de Abril is in Bridge25.tsx.
+export { Bridge, BRIDGE_DECK_M } from "./Bridge25";
