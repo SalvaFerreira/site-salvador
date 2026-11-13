@@ -8,7 +8,7 @@ headline: "I build LLM agents and data pipelines that take manual work off teams
 # Each strength: a title, a short proof for the card in the city, and the full proof.
 strengths:
   - title: "AI agents in production"
-    short: "10+ agents and automations, about 6x less manual work"
+    short: "10+ at Correntes de Memória, about 6x less manual work"
     proof: "10+ AI agents and automations (Python, LLMs) at Correntes de Memória, cutting the team's manual workload about 6x, including LLM processing of unstructured PDF orders."
   - title: "Multi-agent workflows for engineering work"
     short: "at Deloitte, about 10x faster delivery"
