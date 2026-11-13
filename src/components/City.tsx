@@ -141,8 +141,8 @@ const BAIXA = new Vector3(0, 0, -350);
 /** The opening view shows about this many metres of city across the screen. */
 const START_WIDTH_M = 1200;
 const MAX_ZOOM = 5;
-/** Height of the label of the spot on the Vasco da Gama bridge (its deck is about 14 m up). */
-const NOW_LABEL_Y = 26;
+/** Height of the label of the spot on the Vasco da Gama bridge (its deck is about 47 m up there). */
+const NOW_LABEL_Y = 62;
 const FLIGHT_SECONDS = 2.4;
 const PANEL_WIDTH_PX = 620;
 /** Screens this wide or narrower get the phone layout (see global.css). */

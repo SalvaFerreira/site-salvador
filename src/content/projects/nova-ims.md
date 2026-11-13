@@ -5,8 +5,8 @@ category: "education"
 place: "Campolide"
 role: "MSc in Risk Management"
 period: "2026 – 2028 (expected)"
-# NOVA IMS, Campus de Campolide.
-coordinates: [-9.1602, 38.7325]
+# NOVA IMS, Campus de Campolide: its main building, next to where OpenStreetMap places the school.
+coordinates: [-9.160123, 38.731894]
 order: 6
 # Start: orders the journey line and the Tour.
 date: "2026"

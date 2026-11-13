@@ -15,11 +15,12 @@ import {
   Color,
   MeshBasicMaterial,
   Object3D,
+  Vector3,
   type InstancedMesh,
   type OrthographicCamera,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { createFlatMaterial, quality, shared } from "../city/environment";
+import { createFlatMaterial, createLightMaterial, quality, shared } from "../city/environment";
 import { createCalcadaMaterial, createTrafficMaterial } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 
@@ -29,7 +30,7 @@ export interface StreetData {
   crossings: { x: Float32Array; y: Float32Array; angle: Float32Array; kind: Uint8Array };
   lights: { x: Float32Array; y: Float32Array; angle: Float32Array; junction: Uint16Array };
   squares: number[][][];
-  bridge: { deck: number; lines: number[][][] };
+  bridge: { deck: number; lines: number[][][]; span?: number[][][] };
   bus: Polyline[];
   funiculars: { name: string; points: number[][] }[];
   /** The Santa Justa lift, [x, y] in map metres. */
@@ -50,7 +51,7 @@ interface StreetIndex {
   unitsPerMetre: number;
   bus: { file: string; unitsPerMetre: number };
   squares: number[][][];
-  vascoDaGama: { deck: number; lines: number[][][] };
+  vascoDaGama: { deck: number; lines: number[][][]; span?: number[][][] };
   funiculars?: { name: string; points: number[][] }[];
   santaJusta?: [number, number] | null;
   viewpoints?: number[][];
@@ -317,48 +318,177 @@ export function TrafficLights({ data }: { data: StreetData["lights"] }) {
 
 // ---------------------------------------------------------------- Vasco da Gama bridge
 
-const PILLAR_EVERY_M = 80;
+/** The cable-stayed main bridge: two side spans and the main span between the towers (metres). */
+const VDG_SIDE_SPAN_M = 203;
+const VDG_MAIN_SPAN_M = 420;
+const VDG_TOWER_M = 150;
+/** The deck over the main span, high enough for ships; the viaducts are lower. */
+const VDG_HIGH_DECK_M = 47;
+const VDG_LOW_DECK_M = 14;
+const VDG_HALF_WIDTH_M = 17;
+const VDG_PIER_EVERY_M = 70;
+const VDG_LAMP_EVERY_M = 40;
+const CONCRETE = "#d9d5cc";
 
-/** The stretch of the Vasco da Gama bridge inside the map: two decks with traffic, on pillars. */
-export function VascoDaGama({ bridge }: { bridge: StreetData["bridge"] }) {
-  const { decks, pillars, material } = useMemo(() => {
-    const material = createTrafficMaterial();
-    const decks = buildRibbons(
-      bridge.lines.map((line) => ({ points: line.flat(), cls: 0 })),
-      [7.5],
-      bridge.deck,
-    );
-    // Pillars under each deck at even steps along it.
-    const parts: BufferGeometry[] = [];
+/**
+ * The Vasco da Gama bridge where it is inside the map: the cable-stayed main
+ * bridge off the north shore (two H-shaped towers, fans of stays) and the
+ * start of the long viaduct, the deck rising over the shipping channel.
+ */
+export function VascoDaGama({ bridge }: { bridge: StreetData["bridge"] & { span?: number[][][] } }) {
+  const deckMaterial = useMemo(createTrafficMaterial, []);
+  const concrete = useMemo(() => createFlatMaterial(CONCRETE), []);
+  const stayMaterial = useMemo(() => createFlatMaterial("#e4e6e8", { opacity: 0.9, depthWrite: false }), []);
+  const lampLights = useMemo(() => createLightMaterial("#ffb15c"), []);
+  const redLights = useMemo(() => createLightMaterial("#ff3a2a", 0.6), []);
+
+  const model = useMemo(() => {
+    const spans = bridge.span ?? [];
+    // The axis of the main bridge, from its north end to its south end, between the two carriageways.
+    const a = spans.length ? [(spans[0][0][0] + (spans[1]?.[1][0] ?? spans[0][0][0])) / 2, (spans[0][0][1] + (spans[1]?.[1][1] ?? spans[0][0][1])) / 2] : null;
+    const b = spans.length ? [(spans[0][1][0] + (spans[1]?.[0][0] ?? spans[0][1][0])) / 2, (spans[0][1][1] + (spans[1]?.[0][1] ?? spans[0][1][1])) / 2] : null;
+    const length = a && b ? Math.hypot(b[0] - a[0], b[1] - a[1]) : 0;
+    const ux = a && b ? (b[0] - a[0]) / length : 1;
+    const uy = a && b ? (b[1] - a[1]) / length : 0;
+    const nx = -uy;
+    const ny = ux;
+    const mid = VDG_SIDE_SPAN_M + VDG_MAIN_SPAN_M / 2;
+
+    /** Distance along the main bridge from its north end (negative before it). */
+    const along = (x: number, y: number) => (a ? (x - a[0]) * ux + (y - a[1]) * uy : 0);
+    /** Height of the deck at a point: high over the channel, sloping down along the viaducts. */
+    const deckAt = (x: number, y: number) => {
+      if (!a) return bridge.deck;
+      const t = Math.abs(along(x, y) - mid);
+      const half = mid + 10;
+      return t <= half ? VDG_HIGH_DECK_M - 3 * (t / half) ** 2 : Math.max(VDG_LOW_DECK_M, VDG_HIGH_DECK_M - 3 - (t - half) * 0.036);
+    };
+    const point = (s: number, side: number, h: number) =>
+      a ? new Vector3(a[0] + ux * s + nx * side, h, -(a[1] + uy * s + ny * side)) : new Vector3();
+
+    // Carriageways, resampled every 15 m so the deck can rise and fall.
+    const ribbons: Polyline[] = [];
+    const edges: number[] = [];
+    const piers: BufferGeometry[] = [];
+    const lamps: BufferGeometry[] = [];
     for (const line of bridge.lines) {
-      let carry = PILLAR_EVERY_M / 2;
+      const pts: number[] = [];
+      const heights: number[] = [];
       for (let i = 1; i < line.length; i++) {
-        const [ax, ay] = line[i - 1];
-        const [bx, by] = line[i];
-        const len = Math.hypot(bx - ax, by - ay);
-        const heading = Math.atan2(by - ay, bx - ax);
-        for (let d = carry; d < len; d += PILLAR_EVERY_M) {
-          const t = d / len;
-          const pillar = new BoxGeometry(3, bridge.deck + 2, 9);
-          pillar.rotateY(heading);
-          pillar.translate(ax + (bx - ax) * t, (bridge.deck - 2) / 2 - 0.6, -(ay + (by - ay) * t));
-          parts.push(pillar);
+        const [x0, y0] = line[i - 1];
+        const [x1, y1] = line[i];
+        const len = Math.hypot(x1 - x0, y1 - y0);
+        const steps = Math.max(1, Math.ceil(len / 15));
+        for (let k = i === 1 ? 0 : 1; k <= steps; k++) {
+          const x = x0 + ((x1 - x0) * k) / steps;
+          const y = y0 + ((y1 - y0) * k) / steps;
+          pts.push(x, y);
+          heights.push(deckAt(x, y));
         }
-        carry = (carry - len) % PILLAR_EVERY_M;
-        if (carry < 0) carry += PILLAR_EVERY_M;
+      }
+      ribbons.push({ points: pts, cls: 0, heights });
+      // The concrete edge of the deck, and piers and lamps along the way.
+      let run = 0;
+      for (let i = 1; i < pts.length / 2; i++) {
+        const x0 = pts[i * 2 - 2];
+        const y0 = pts[i * 2 - 1];
+        const x1 = pts[i * 2];
+        const y1 = pts[i * 2 + 1];
+        const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+        const ox = (-(y1 - y0) / len) * 7.8;
+        const oy = ((x1 - x0) / len) * 7.8;
+        for (const side of [-1, 1]) {
+          edges.push(x0 + ox * side, y0 + oy * side, heights[i - 1], x1 + ox * side, y1 + oy * side, heights[i]);
+        }
+        run += len;
+        const s = along(x1, y1);
+        const onMainBridge = s > 15 && s < length - 15;
+        if (run >= VDG_PIER_EVERY_M && !onMainBridge) {
+          run = 0;
+          const h = heights[i];
+          piers.push(new BoxGeometry(5, h, 9).rotateY(Math.atan2(y1 - y0, x1 - x0)).translate(x1, h / 2 - 2, -y1));
+        }
+        if (i % Math.round(VDG_LAMP_EVERY_M / 15) === 0) {
+          lamps.push(new BoxGeometry(1.4, 1.4, 1.4).translate(x1 + ox, heights[i] + 5, -(y1 + oy)));
+        }
       }
     }
-    return { decks, pillars: parts.length ? mergeGeometries(parts) : null, material };
+
+    // Deck edges: a band of concrete under each side of the road.
+    const band: number[] = [];
+    for (let i = 0; i < edges.length; i += 6) {
+      const [x0, y0, h0, x1, y1, h1] = edges.slice(i, i + 6);
+      band.push(x0, h0, -y0, x1, h1, -y1, x1, h1 - 2.4, -y1, x0, h0, -y0, x1, h1 - 2.4, -y1, x0, h0 - 2.4, -y0);
+    }
+    const bandGeometry = new BufferGeometry();
+    bandGeometry.setAttribute("position", new BufferAttribute(new Float32Array(band), 3));
+
+    // Towers and stays of the main bridge.
+    const towers: BufferGeometry[] = [];
+    const stays: number[] = [];
+    const beacons: BufferGeometry[] = [];
+    if (a) {
+      const heading = Math.atan2(uy, ux);
+      for (const s of [VDG_SIDE_SPAN_M, VDG_SIDE_SPAN_M + VDG_MAIN_SPAN_M]) {
+        const c = point(s, 0, 0);
+        const deck = deckAt(c.x, -c.z);
+        const parts: BufferGeometry[] = [];
+        for (const side of [-1, 1]) {
+          // Each leg narrower towards the top.
+          parts.push(new BoxGeometry(8, deck + 4, 6).translate(0, (deck + 4) / 2 - 2, side * VDG_HALF_WIDTH_M));
+          parts.push(new BoxGeometry(6, VDG_TOWER_M - deck - 4, 4.5).translate(0, deck + 2 + (VDG_TOWER_M - deck - 4) / 2, side * VDG_HALF_WIDTH_M));
+        }
+        // Cross beams under the deck and near the top.
+        parts.push(new BoxGeometry(5, 4, VDG_HALF_WIDTH_M * 2).translate(0, deck - 4, 0));
+        parts.push(new BoxGeometry(4, 5, VDG_HALF_WIDTH_M * 2).translate(0, VDG_TOWER_M - 12, 0));
+        // A pier in the water under it.
+        parts.push(new BoxGeometry(16, 6, VDG_HALF_WIDTH_M * 2 + 14).translate(0, 1, 0));
+        const tower = mergeGeometries(parts.map((p) => p.toNonIndexed()));
+        tower.rotateY(heading);
+        tower.translate(c.x, 0, c.z);
+        towers.push(tower);
+        for (const side of [-1, 1]) {
+          beacons.push(new BoxGeometry(2.4, 2.4, 2.4).translate(point(s, side * VDG_HALF_WIDTH_M, VDG_TOWER_M + 3).x, VDG_TOWER_M + 3, point(s, side * VDG_HALF_WIDTH_M, 0).z));
+          // A fan of stays each way, from high on the tower down to the deck edge.
+          for (const dir of [-1, 1]) {
+            for (let k = 1; k <= 13; k++) {
+              const top = point(s, side * VDG_HALF_WIDTH_M, VDG_TOWER_M - 16 - k * 3.6);
+              const ds = s + dir * k * 15;
+              const foot = point(ds, side * (VDG_HALF_WIDTH_M - 1.5), 0);
+              foot.y = deckAt(foot.x, -foot.z) + 0.5;
+              stays.push(top.x, top.y, top.z, foot.x, foot.y, foot.z);
+            }
+          }
+        }
+      }
+    }
+    const stayGeometry = new BufferGeometry();
+    stayGeometry.setAttribute("position", new BufferAttribute(new Float32Array(stays), 3));
+
+    return {
+      deck: buildRibbons(ribbons, [7.5], 0),
+      band: bandGeometry,
+      piers: piers.length ? mergeGeometries(piers.map((p) => p.toNonIndexed())) : null,
+      towers: towers.length ? mergeGeometries(towers) : null,
+      stays: stayGeometry,
+      lamps: lamps.length ? mergeGeometries(lamps.map((p) => p.toNonIndexed())) : null,
+      beacons: beacons.length ? mergeGeometries(beacons.map((p) => p.toNonIndexed())) : null,
+    };
   }, [bridge]);
 
   return (
     <>
-      <mesh geometry={decks} material={material} raycast={noRaycast} />
-      {pillars && (
-        <mesh geometry={pillars} raycast={noRaycast}>
-          <meshLambertMaterial color="#d9d5cc" />
+      <mesh geometry={model.deck} material={deckMaterial} raycast={noRaycast} frustumCulled={false} />
+      <mesh geometry={model.band} material={concrete} raycast={noRaycast} frustumCulled={false} />
+      {model.piers && <mesh geometry={model.piers} material={concrete} raycast={noRaycast} frustumCulled={false} />}
+      {model.towers && (
+        <mesh geometry={model.towers} raycast={noRaycast} frustumCulled={false}>
+          <meshLambertMaterial color={CONCRETE} />
         </mesh>
       )}
+      <lineSegments geometry={model.stays} material={stayMaterial} raycast={noRaycast} frustumCulled={false} />
+      {model.lamps && <mesh geometry={model.lamps} material={lampLights} renderOrder={4} raycast={noRaycast} frustumCulled={false} />}
+      {model.beacons && <mesh geometry={model.beacons} material={redLights} renderOrder={4} raycast={noRaycast} frustumCulled={false} />}
     </>
   );
 }
