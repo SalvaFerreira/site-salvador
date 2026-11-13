@@ -8,6 +8,7 @@ import {
   AdditiveBlending,
   BoxGeometry,
   PlaneGeometry,
+  Points,
   ShaderMaterial,
   BufferAttribute,
   BufferGeometry,
@@ -729,7 +730,46 @@ export function StreetLamps({ roads }: { roads: Polyline[] }) {
     return { all: Float32Array.from(all), grid };
   }, [roads]);
 
+  // From further away: every lamp in the city as a point of light, a few pixels wide.
+  const far = useMemo(() => {
+    const n = lamps.all.length / 3;
+    const positions = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const heading = lamps.all[i * 3 + 2];
+      positions[i * 3] = lamps.all[i * 3] + Math.cos(heading) * 1.4;
+      positions[i * 3 + 1] = LAMP_HEIGHT;
+      positions[i * 3 + 2] = -(lamps.all[i * 3 + 1] + Math.sin(heading) * 1.4);
+    }
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new BufferAttribute(positions, 3));
+    const material = new ShaderMaterial({
+      vertexShader: /* glsl */ `
+uniform float uSize;
+void main() {
+  gl_PointSize = uSize;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`,
+      fragmentShader: /* glsl */ `
+uniform float uNight;
+void main() {
+  float d = length(gl_PointCoord - 0.5) * 2.0;
+  float a = pow(clamp(1.0 - d, 0.0, 1.0), 1.5) * smoothstep(0.35, 0.8, uNight) * 0.5;
+  if (a < 0.01) discard;
+  gl_FragColor = vec4(1.0, 0.52, 0.18, a);
+  #include <colorspace_fragment>
+}
+`,
+      uniforms: { uNight: shared.uNight, uSize: { value: 4 } },
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+    });
+    return new Points(geometry, material);
+  }, [lamps]);
+
   const view = useViewBox();
+  const gl = useThree((s) => s.gl);
   const last = useRef({ x: NaN, y: NaN, zoom: NaN });
   const dummy = useMemo(() => new Object3D(), []);
 
@@ -741,6 +781,9 @@ export function StreetLamps({ roads }: { roads: Polyline[] }) {
     const { box, zoom } = view();
     const visible = zoom >= LAMP_ZOOM;
     p.visible = h.visible = l.visible = visible;
+    // At night the lights of the whole city stay on when the view is wide; close up, the lamps themselves take over.
+    far.visible = !visible && shared.uNight.value > 0.05;
+    (far.material as ShaderMaterial).uniforms.uSize.value = Math.min(9, Math.max(3, zoom * 14)) * gl.getPixelRatio();
     if (!visible) {
       last.current.zoom = NaN;
       return;
@@ -790,6 +833,7 @@ export function StreetLamps({ roads }: { roads: Polyline[] }) {
       </instancedMesh>
       <instancedMesh ref={heads} args={[headGeometry, headMaterial, MAX_LAMPS]} raycast={noRaycast} frustumCulled={false} />
       <instancedMesh ref={pools} args={[poolGeometry, poolMaterial, MAX_LAMPS]} renderOrder={2.5} raycast={noRaycast} frustumCulled={false} />
+      <primitive object={far} renderOrder={4} raycast={noRaycast} frustumCulled={false} />
     </>
   );
 }
