@@ -39,7 +39,11 @@ const sections = places.map((entry) => ({ entry, html: htmlOf(entry.rendered) })
             {entry.data.stack.length > 0 && <p class="list-place">{entry.data.stack.join(" · ")}</p>}
             <Fragment set:html={html} />
             {entry.data.images.map((image) => (
-              <img class="list-image" src={image.src} alt={image.alt} loading="lazy" />
+              image.src.endsWith(".mp4") ? (
+                <video class="list-image" src={image.src} poster={image.poster} aria-label={image.alt} muted loop playsinline controls preload="none" />
+              ) : (
+                <img class="list-image" src={image.src} alt={image.alt} loading="lazy" />
+              )
             ))}
             {entry.data.links.length > 0 && (
               <p class="list-links">

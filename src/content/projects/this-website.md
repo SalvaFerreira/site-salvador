@@ -11,7 +11,13 @@ coordinates: [-9.136816, 38.708443]
 spot: 36
 order: 9.5
 date: "2026-11"
-images: []
+images:
+  - src: "/videos/city-day-to-night.mp4"
+    poster: "/videos/city-day-to-night.jpg"
+    alt: "The Baixa from late afternoon to night: the sun goes down and the street lamps come on."
+  - src: "/videos/city-flight.mp4"
+    poster: "/videos/city-flight.jpg"
+    alt: "The camera flies from the whole city down to the Arco da Rua Augusta."
 stack: ["Astro", "React", "Three.js", "React Three Fiber", "TypeScript", "Python", "GeoPandas"]
 links:
   - label: "Source code"

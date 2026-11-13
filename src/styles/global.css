@@ -904,6 +904,7 @@ button:focus-visible {
 }
 
 .panel-images img,
+.panel-images video,
 .list-image {
   display: block;
   max-width: 100%;

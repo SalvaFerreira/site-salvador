@@ -25,8 +25,12 @@ const projects = defineCollection({
     order: z.number(),
     /** When it started. Orders the journey line and the Tour; without a date a place comes last. */
     date: z.coerce.date().optional(),
-    /** Screenshots or photos for the panel, in public/ (e.g. "/images/correntes-1.jpg"). */
-    images: z.array(z.object({ src: z.string(), alt: z.string() })).default([]),
+    /**
+     * Screenshots, photos or short videos for the panel, in public/ (e.g. "/images/correntes-1.jpg").
+     * A video (.mp4) plays silently in a loop, like a GIF; `poster` is the still shown before it
+     * plays, and instead of it for visitors who ask for reduced motion.
+     */
+    images: z.array(z.object({ src: z.string(), alt: z.string(), poster: z.string().optional() })).default([]),
     stack: z.array(z.string()).default([]),
     /** Company or school website, email, profiles. */
     links: z.array(z.object({ label: z.string(), url: z.string() })).default([]),
