@@ -55,6 +55,24 @@ export function sunDay(today = new Date(), stepMinutes = 10) {
   return { heights, stepMinutes, sunrise, sunset };
 }
 
+/**
+ * Share of windows lit at a time of night (Lisbon minutes): lights come on
+ * through the evening, most around nine, then go off one by one until the
+ * small hours; a few come on again before dawn.
+ */
+export function litShare(minutes: number): number {
+  const table: [number, number][] = [
+    [0, 0.2], [120, 0.09], [300, 0.05], [390, 0.12], [480, 0.1],
+    [1020, 0.18], [1170, 0.42], [1290, 0.5], [1380, 0.36], [1440, 0.2],
+  ];
+  for (let i = 1; i < table.length; i++) {
+    const [m1, v1] = table[i];
+    const [m0, v0] = table[i - 1];
+    if (minutes <= m1) return v0 + ((v1 - v0) * (minutes - m0)) / (m1 - m0);
+  }
+  return table[table.length - 1][1];
+}
+
 function smoothstep(a: number, b: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);

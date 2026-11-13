@@ -9,6 +9,8 @@ export const shared = {
   uNight: { value: 0 },
   /** The warm light around sunrise and sunset, 0 to 1. */
   uDusk: { value: 0 },
+  /** Share of windows with the light on after dark, by the hour (see litShare in daylight.ts). */
+  uLit: { value: 0.4 },
 };
 
 /** Colour behind the map, outside the area that was modelled. */

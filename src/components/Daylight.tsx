@@ -4,7 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Color, type AmbientLight, type DirectionalLight } from "three";
-import { atLisbonMinutes, formatMinutes, lightFor, lisbonMinutes, sunDay, sunElevation } from "../city/daylight";
+import { atLisbonMinutes, formatMinutes, lightFor, lisbonMinutes, litShare, sunDay, sunElevation } from "../city/daylight";
 import { shadowMaterials, shared } from "../city/environment";
 
 /** The moment to light the city for: now, or a time of day chosen on the clock (Lisbon minutes). */
@@ -33,7 +33,9 @@ export function Daylight({ override, reducedMotion }: { override: number | null;
     since.current += delta;
     if (since.current > 0.5) {
       since.current = 0;
-      target.current = lightFor(sunElevation(momentFor(override)));
+      const moment = momentFor(override);
+      target.current = lightFor(sunElevation(moment));
+      shared.uLit.value = litShare(override ?? lisbonMinutes(moment));
     }
     const k = reducedMotion ? 1 : Math.min(1, delta * 2.5);
     const night = (shared.uNight.value += (target.current.night - shared.uNight.value) * k);

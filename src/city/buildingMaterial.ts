@@ -41,6 +41,8 @@ uniform vec3 uOff;
 uniform float uHover;
 uniform float uNight;
 uniform float uDusk;
+uniform float uLit;
+uniform float uTime;
 
 varying vec4 vWall;
 varying float vSeed;
@@ -72,6 +74,8 @@ void main() {
   vec3 color;
   // Windows and shop fronts lit at night (0 to 1).
   float glow = 0.0;
+  // ...of which the blue light of a television.
+  float tv = 0.0;
 
   if (vRoof > 0.5) {
     // Terracotta tiles; tall or modern buildings get a flat grey roof.
@@ -130,10 +134,15 @@ void main() {
       float coverage = 0.48 * 0.54;
       float window = mix(mask, coverage * step(up, floors * FLOOR_H), smoothstep(0.25, 0.9, size));
       color = mix(color, uGlass * light, window * mix(mix(0.5, 0.42, lit), 0.3, off));
-      // At night some windows are lit: a few in each building, different ones in each.
+      // At night some windows are lit, more in the evening and fewer as the night goes on:
+      // each window has its own hour, so they come on and go off one by one.
       // From far away each window is less than a pixel, so the share of lit ones is used instead.
-      float lamp = step(hash(vec3(id * vec2(1.7, 3.1), seed * 91.0)), 0.36);
-      glow += window * mix(lamp, 0.36, smoothstep(0.25, 0.9, size)) * (1.0 - off);
+      float lamp = step(hash(vec3(id * vec2(1.7, 3.1), seed * 91.0)), uLit);
+      float far = smoothstep(0.25, 0.9, size);
+      glow += window * mix(lamp, uLit, far) * (1.0 - off);
+      float set = step(hash(vec3(id * vec2(2.3, 1.1), seed * 37.0)), 0.16);
+      float flicker = 0.7 + 0.3 * sin(uTime * (2.0 + 6.0 * hash(vec3(id, seed))) + seed * 40.0) * sin(uTime * 0.9 + id.x);
+      tv += window * lamp * set * flicker * (1.0 - far) * (1.0 - off);
 
       // Close up: shop fronts and doors on the ground floor, balconies on some
       // buildings, and a cornice under the roof. All fade out with distance.
@@ -141,7 +150,8 @@ void main() {
       float ground = 1.0 - step(0.5, id.y);
       float shop = step(0.12, f.x) * step(f.x, 0.88) * step(f.y, 0.8) * ground;
       color = mix(color, uGlass * light * 0.8, shop * detail * (1.0 - off) * 0.85);
-      glow += shop * detail * (1.0 - off) * 0.8;
+      // Shop fronts are lit in the evening and dark in the small hours, like the shops.
+      glow += shop * detail * (1.0 - off) * 0.8 * smoothstep(0.15, 0.4, uLit);
       float railing = step(hash(vec3(seed * 29.3, 4.4, 1.9)), 0.4) * (1.0 - ground) * step(id.y, floors - 0.5);
       float balcony = step(0.12, f.x) * step(f.x, 0.88) * step(0.17, f.y) * step(f.y, 0.25);
       color = mix(color, vec3(0.2, 0.22, 0.25) * light, balcony * railing * detail * 0.8);
@@ -168,7 +178,9 @@ void main() {
   color = mix(color, color * vec3(1.1, 0.9, 0.76), uDusk * 0.55);
   vec3 dark = mix(color * vec3(0.19, 0.23, 0.36), color * 0.8, lit * 0.85);
   color = mix(color, dark, uNight);
-  color += vec3(1.0, 0.7, 0.36) * min(glow, 1.0) * uNight * 0.9;
+  vec3 warm = vec3(1.0, 0.7, 0.36);
+  vec3 screen = vec3(0.5, 0.66, 1.0);
+  color += mix(warm, screen, clamp(tv / max(glow, 0.001), 0.0, 1.0)) * min(glow, 1.0) * uNight * 0.9;
 
   gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>
