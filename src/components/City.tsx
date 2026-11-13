@@ -145,6 +145,10 @@ const MAX_ZOOM = 5;
 /** Height of the label of the spot on the Vasco da Gama bridge (its deck is about 47 m up there). */
 const NOW_LABEL_Y = 62;
 const FLIGHT_SECONDS = 2.4;
+/** With reduced motion the camera still travels, but briefly and without pulling back. */
+const GENTLE_FLIGHT_SECONDS = 1;
+/** Pixels per metre at one of Salvador's buildings: close enough to see the building itself. */
+const PLACE_ZOOM = 3.2;
 const PANEL_WIDTH_PX = 620;
 /** Screens this wide or narrower get the phone layout (see global.css). */
 const NARROW_PX = 700;
@@ -218,7 +222,7 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
       setPlaces(
         located
           .filter((t) => t.kind !== "work" || t.spot !== undefined)
-          .map((t) => ({ index: t.index, x: t.x, z: -t.y, height: 0, radius: 0, labelY: t.spot ?? NOW_LABEL_Y, zoom: t.spot ? 2.2 : 1.4 })),
+          .map((t) => ({ index: t.index, x: t.x, z: -t.y, height: 0, radius: 0, labelY: t.spot ?? NOW_LABEL_Y, zoom: t.spot ? 3 : 1.8 })),
       );
       const best = new Map<number, number>();
 
@@ -242,7 +246,7 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
           // A target near a neighbourhood border can match in two chunks: keep the closest.
           if ((best.get(f.index) ?? Infinity) <= f.distance) continue;
           best.set(f.index, f.distance);
-          const place: Place = { index: f.index, x: f.x, z: f.z, height: f.height, radius: f.radius, labelY: f.height + 4, zoom: 2 };
+          const place: Place = { index: f.index, x: f.x, z: f.z, height: f.height, radius: f.radius, labelY: f.height + 4, zoom: PLACE_ZOOM };
           setPlaces((prev) => [...prev.filter((q) => q.index !== f.index), place]);
         }
         if (i === 0) onStats({ firstChunkMs: Math.round(performance.now() - start) });
@@ -354,7 +358,16 @@ function CameraRig({ place, overview, reducedMotion, view, panelOpen, api }: Rig
   const camera = useThree((s) => s.camera) as OrthographicCamera;
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const size = useThree((s) => s.size);
-  const flight = useRef<{ t: number; seconds: number; fromTarget: Vector3; toTarget: Vector3; fromZoom: number; toZoom: number } | null>(null);
+  const flight = useRef<{
+    t: number;
+    seconds: number;
+    fromTarget: Vector3;
+    toTarget: Vector3;
+    fromZoom: number;
+    toZoom: number;
+    /** How far the camera pulls back halfway (natural log of the zoom ratio), so a long trip reads as travelling across the city. */
+    lift: number;
+  } | null>(null);
   const first = useRef(true);
 
   // Zooming out stops when the screen would reach past the map on its short side.
@@ -423,16 +436,17 @@ function CameraRig({ place, overview, reducedMotion, view, panelOpen, api }: Rig
       if (!controls) return;
       const z = Math.min(MAX_ZOOM, Math.max(minZoom, zoom));
       const to = confine(target.clone(), z);
-      // prefers-reduced-motion: cut straight to the new view.
-      if (reducedMotion) {
-        apply(to, z);
-        controls.update();
-        return;
-      }
-      flight.current = { t: 0, seconds, fromTarget: controls.target.clone(), toTarget: to, fromZoom: camera.zoom, toZoom: z };
+      const from = controls.target.clone();
+      // Long trips pull back halfway, enough to keep both ends in sight (at most about 2.5x),
+      // so the visitor sees where they are being taken. Reduced motion: a short, flat flight.
+      const distance = from.distanceTo(to);
+      const fit = (Math.min(size.width, size.height) * 0.8) / Math.max(1, distance);
+      const lift = reducedMotion ? 0 : Math.min(0.9, Math.max(0, Math.log(Math.min(camera.zoom, z) / Math.max(minZoom, fit))));
+      const time = reducedMotion ? Math.min(seconds, GENTLE_FLIGHT_SECONDS) : seconds + lift * 0.6;
+      flight.current = { t: 0, seconds: time, fromTarget: from, toTarget: to, fromZoom: camera.zoom, toZoom: z, lift };
       controls.enabled = false;
     },
-    [controls, camera, minZoom, confine, apply, reducedMotion],
+    [controls, camera, minZoom, confine, apply, reducedMotion, size],
   );
 
   useEffect(() => {
@@ -510,8 +524,10 @@ function CameraRig({ place, overview, reducedMotion, view, panelOpen, api }: Rig
     if (!f || !controls) return;
     f.t = Math.min(1, f.t + delta / f.seconds);
     const k = f.t < 0.5 ? 4 * f.t ** 3 : 1 - (-2 * f.t + 2) ** 3 / 2; // ease in-out
-    // Zoom is interpolated as a ratio, so the flight feels even from far to near.
-    apply(target.lerpVectors(f.fromTarget, f.toTarget, k), f.fromZoom * (f.toZoom / f.fromZoom) ** k);
+    // Zoom is interpolated as a ratio, so the flight feels even from far to near,
+    // with an arc that pulls back in the middle of a long trip.
+    const zoom = f.fromZoom * (f.toZoom / f.fromZoom) ** k * Math.exp(-4 * k * (1 - k) * f.lift);
+    apply(confine(target.lerpVectors(f.fromTarget, f.toTarget, k), zoom), zoom);
     if (f.t === 1) {
       flight.current = null;
       controls.enabled = true;
@@ -1004,8 +1020,8 @@ export default function City({
   });
   const [hovered, setHovered] = useState(-1);
   const showStats = useMemo(() => new URLSearchParams(window.location.search).has("stats"), []);
-  // For visitors whose system asks for reduced motion the camera cuts instead of
-  // flying. The small things that move in the city (cars, boats, the plane) keep moving.
+  // For visitors whose system asks for reduced motion the camera flight is short and
+  // flat (see CameraRig). The small things that move in the city (cars, boats, the plane) keep moving.
   const reducedMotion = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
   const [stats, setStats] = useState<Stats>({ buildings: 0, triangles: 0, firstChunkMs: 0, loadMs: 0, fps: 0 });
   const onStats = useCallback<OnStats>((patch) => {
