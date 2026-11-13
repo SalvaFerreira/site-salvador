@@ -247,6 +247,11 @@ button:focus-visible {
   font-size: 13px;
 }
 
+.sun-weather {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .sun-times {
   color: var(--muted);
   font-size: 10.5px;

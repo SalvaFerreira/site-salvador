@@ -44,11 +44,13 @@ export function Daylight({ override, reducedMotion }: { override: number | null;
       ambient.current.intensity = 2.1 - 1.35 * night;
       ambient.current.color.copy(DAY_AMBIENT).lerp(NIGHT_AMBIENT, night);
     }
+    const clouds = shared.uClouds.value;
     if (sun.current) {
-      sun.current.intensity = 1.6 * (1 - night);
+      // Clouds take most of the sun away (the cloud shadows themselves are drawn in Weather.tsx).
+      sun.current.intensity = 1.6 * (1 - night) * (1 - 0.5 * clouds);
       sun.current.color.copy(NOON_SUN).lerp(LOW_SUN, dusk);
     }
-    for (const m of shadowMaterials) m.opacity = 0.42 * (1 - 0.85 * night);
+    for (const m of shadowMaterials) m.opacity = 0.42 * (1 - 0.85 * night) * (1 - 0.6 * clouds);
   });
 
   // A new value for the clock is seen at once.
@@ -75,7 +77,16 @@ const toY = (elevation: number) => HORIZON - elevation * (18 / 75);
  * horizon, and where the sun is now (a moon while it is below the horizon).
  * Dragging along it, or the arrow keys, shows the city at another time of day.
  */
-export function SunClock({ override, onChange }: { override: number | null; onChange: (minutes: number | null) => void }) {
+export function SunClock({
+  override,
+  onChange,
+  weather,
+}: {
+  override: number | null;
+  onChange: (minutes: number | null) => void;
+  /** "17 °C · light rain" */
+  weather: string;
+}) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [now, setNow] = useState(() => new Date());
 
@@ -144,6 +155,7 @@ export function SunClock({ override, onChange }: { override: number | null; onCh
       <span className="sun-text">
         <span className="sun-time">
           {override === null ? "Lisbon" : "Showing"} <time>{formatMinutes(minutes)}</time>
+          {weather && <span className="sun-weather"> · {weather}</span>}
         </span>
         <span className="sun-times">
           {day.sunrise !== null && day.sunset !== null

@@ -11,6 +11,7 @@ import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type F
 import { Bridge, loadCover, loadPlan, Parks, type CoverData, type PlanData } from "./Extras";
 import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
 import { Daylight, SunClock } from "./Daylight";
+import { describe, useWeather, WeatherEffects, type Weather } from "./Weather";
 import { Bikes, CruiseShip, Funiculars, Gulls, SantaJusta, Terraces, Viewpoints } from "./MoreLife";
 import Panel from "./Panel";
 import { Buses, Calcada, Crossings, loadStreet, People, StreetLamps, TrafficLights, VascoDaGama, type StreetData } from "./Street";
@@ -620,9 +621,10 @@ interface SceneProps {
   spots: RefObject<LabelSpot[]>;
   /** Time of day chosen on the clock (Lisbon minutes), or null for now. */
   timeOverride: number | null;
+  weather: Weather;
 }
 
-function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots, timeOverride }: SceneProps) {
+function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots, timeOverride, weather }: SceneProps) {
   const { manifest, land, roads, chunks, places, plan, cover, street } = useCity(stops, projects, onStats);
   const buildingMaterial = useMemo(() => {
     const material = createBuildingMaterial();
@@ -688,6 +690,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
     <>
       <color attach="background" args={[BACKDROP]} />
       <Daylight override={timeOverride} reducedMotion={reducedMotion} />
+      <WeatherEffects weather={weather} reducedMotion={reducedMotion} />
 
       {/* Tejo: the modelled rectangle; land is drawn on top of it. */}
       {bbox && (
@@ -916,6 +919,7 @@ export default function City({
   const live = useMemo(canRunCity, []);
   const stops = useMemo(() => toStops(projects), [projects]);
   const [touring, setTouring] = useState(false);
+  const weather = useWeather();
   // ?time=HH:MM shows the city at that time of day (for checking things and for the preview images).
   const [timeOverride, setTimeOverride] = useState<number | null>(() => {
     const match = new URLSearchParams(window.location.search).get("time")?.match(/^(\d{1,2}):(\d{2})$/);
@@ -1072,6 +1076,7 @@ export default function City({
             api={api}
             spots={spots}
             timeOverride={timeOverride}
+            weather={weather}
           />
         </Canvas>
       ) : (
@@ -1129,7 +1134,7 @@ export default function City({
         </nav>
       )}
 
-      {live && !SHOT && <SunClock override={timeOverride} onChange={setTimeOverride} />}
+      {live && !SHOT && <SunClock override={timeOverride} onChange={setTimeOverride} weather={describe(weather)} />}
 
       {stop && current && !SHOT && (
         <Panel

@@ -11,6 +11,10 @@ export const shared = {
   uDusk: { value: 0 },
   /** Share of windows with the light on after dark, by the hour (see litShare in daylight.ts). */
   uLit: { value: 0.4 },
+  /** How much of the sky is covered by cloud, 0 to 1 (Weather.tsx). */
+  uClouds: { value: 0 },
+  /** Wet streets after rain, 0 to 1. */
+  uWet: { value: 0 },
 };
 
 /** Colour behind the map, outside the area that was modelled. */
@@ -19,9 +23,11 @@ export const BACKDROP = "#22252b";
 const NIGHT_GLSL = /* glsl */ `
 uniform float uNight;
 uniform float uDusk;
+uniform float uWet;
 
-// Dusk warms everything a little; night turns it dark blue.
+// Dusk warms everything a little; night turns it dark blue; rain darkens the ground.
 vec3 atNight(vec3 c) {
+  c *= 1.0 - 0.16 * uWet;
   c = mix(c, c * vec3(1.1, 0.9, 0.76), uDusk * 0.55);
   return mix(c, c * vec3(0.19, 0.23, 0.36), uNight);
 }
@@ -47,6 +53,7 @@ export function withNight<T extends ShaderMaterial>(material: T, mode: NightMode
     NIGHT_GLSL + material.fragmentShader.replace("#include <colorspace_fragment>", `${after}\n  #include <colorspace_fragment>`);
   material.uniforms.uNight = shared.uNight;
   material.uniforms.uDusk = shared.uDusk;
+  material.uniforms.uWet = shared.uWet;
   return material;
 }
 
