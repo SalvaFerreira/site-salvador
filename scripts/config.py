@@ -5,20 +5,20 @@ ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
 OUT = ROOT / "public" / "data"
 
-# Visible area: Algés -> the river east of Parque das Nações, the Tejo -> Loures.
-# It reaches well north and east of the places on the map so that the opening
-# view, which shows all of them, never sees past the edge.
-WEST, SOUTH, EAST, NORTH = -9.23, 38.66, -9.03, 38.843
+# Visible area: Belém -> the river east of Parque das Nações, the Tejo -> Loures.
+# Just large enough that the opening view, which shows all of Salvador's places,
+# never sees past the edge on common laptop screens (see the home view in City.tsx).
+WEST, SOUTH, EAST, NORTH = -9.216, 38.66, -9.042, 38.830
 
 # The area was first downloaded up to these limits, in a grid of tiles; the
 # strips added since (north and east) are downloaded separately, so the files
 # already on disk stay valid. Each strip is (name, south, west, north, east).
 GRID_EAST, GRID_NORTH = -9.09, 38.78
 EXTRA_STRIPS = [
-    ("n", GRID_NORTH, WEST, 38.79, -9.08),
+    ("n", GRID_NORTH, -9.23, 38.79, -9.08),
     ("e", SOUTH, GRID_EAST, GRID_NORTH, -9.08),
-    ("n2", 38.79, WEST, NORTH, EAST),
-    ("e2", SOUTH, -9.08, 38.79, EAST),
+    ("n2", 38.79, -9.23, 38.843, -9.03),
+    ("e2", SOUTH, -9.08, 38.79, -9.03),
 ]
 
 # Scene origin (Praça do Comércio). Everything is exported in metres

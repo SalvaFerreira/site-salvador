@@ -12,7 +12,7 @@ import { Bridge, loadCover, loadPlan, Parks, type CoverData, type PlanData } fro
 import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
 import { Daylight, SunClock } from "./Daylight";
 import Panel from "./Panel";
-import { Buses, Calcada, Crossings, loadStreet, People, TrafficLights, VascoDaGama, type StreetData } from "./Street";
+import { Buses, Calcada, Crossings, loadStreet, People, StreetLamps, TrafficLights, VascoDaGama, type StreetData } from "./Street";
 
 export type Category = "job" | "education" | "personal";
 
@@ -306,8 +306,9 @@ function CameraRig({ place, overview, reducedMotion, view, panelOpen, api }: Rig
       minR = Math.min(minR, r); maxR = Math.max(maxR, r);
       minU = Math.min(minU, u); maxU = Math.max(maxU, u);
     }
-    const sides = Math.min(170, size.width * 0.12); // labels are centred on their place
-    const top = (document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 100) + 56;
+    // Tight around the places: labels near the sides are kept on screen by LabelPositioner.
+    const sides = Math.min(60, size.width * 0.04);
+    const top = (document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 100) + 50;
     const bottom = 70;
     const zoom = Math.min(
       MAX_ZOOM,
@@ -511,7 +512,9 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
       // Top-left corner of the label, kept inside the free part of the screen.
       let x = Math.min(right - w, Math.max(left, px - w / 2));
       let y = Math.min(bottom - h, Math.max(top, py - h));
-      const away = Math.abs(x - (px - w / 2)) > 1 || Math.abs(y - (py - h)) > 1;
+      // "Away" (an arrow instead of the pointer) only when the place itself is off screen,
+      // not when its label is merely nudged to stay inside.
+      const away = px < left || px > right || py < top || py > bottom;
 
       // Labels waiting at an edge must not pile up on each other.
       // Step down past each label in the way (up, when there is no room below),
@@ -708,6 +711,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {street && <TrafficLights data={street.lights} />}
       {street && <Buses lines={street.bus} />}
       {street && roads && <People roads={roads.lines} crossings={street.crossings} />}
+      {roads && <StreetLamps roads={roads.lines} />}
       {street && <VascoDaGama bridge={street.bridge} />}
       {plan && <Trams routes={plan.tramRoutes} />}
       {plan && <Tracks file={plan.tracks.file} unitsPerMetre={plan.tracks.unitsPerMetre} routes={plan.trainRoutes} />}

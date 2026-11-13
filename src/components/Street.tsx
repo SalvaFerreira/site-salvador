@@ -5,7 +5,10 @@ import { useFrame, useThree } from "@react-three/fiber";
 import earcut from "earcut";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import {
+  AdditiveBlending,
   BoxGeometry,
+  PlaneGeometry,
+  ShaderMaterial,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -581,5 +584,193 @@ export function People({ roads, crossings }: { roads: Polyline[]; crossings: Str
     <instancedMesh ref={mesh} args={[geometry, undefined, MAX_PEOPLE]} raycast={noRaycast} frustumCulled={false}>
       <meshLambertMaterial vertexColors />
     </instancedMesh>
+  );
+}
+
+// ---------------------------------------------------------------- street lamps
+
+/** Pixels per metre below which street lamps are not drawn. */
+const LAMP_ZOOM = 1.0;
+const LAMP_EVERY_M = 30;
+const MAX_LAMPS = 6000;
+const LAMP_HEIGHT = 6.5;
+/** Distance of a lamp from the middle of the street, per road class (on the pavement). */
+const LAMP_SIDE_M = [7.2, 5.6, 4.0];
+
+/** Post and arm, the arm along +x (over the street). */
+function createLampPostGeometry(): BufferGeometry {
+  return mergeGeometries([
+    new BoxGeometry(0.28, LAMP_HEIGHT, 0.28).translate(0, LAMP_HEIGHT / 2, 0),
+    new BoxGeometry(1.5, 0.18, 0.18).translate(0.7, LAMP_HEIGHT - 0.1, 0),
+  ]);
+}
+
+/** The lamp head: grey by day, lit sodium orange at night. */
+function createLampHeadMaterial(): ShaderMaterial {
+  return new ShaderMaterial({
+    vertexShader: /* glsl */ `
+void main() {
+  vec4 p = instanceMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * modelViewMatrix * p;
+}
+`,
+    fragmentShader: /* glsl */ `
+uniform float uNight;
+
+void main() {
+  vec3 off = vec3(0.42, 0.43, 0.45);
+  vec3 lit = vec3(1.0, 0.72, 0.38) * 1.15;
+  gl_FragColor = vec4(mix(off * mix(1.0, 0.3, uNight), lit, smoothstep(0.35, 0.8, uNight)), 1.0);
+  #include <colorspace_fragment>
+}
+`,
+    uniforms: { uNight: shared.uNight },
+  });
+}
+
+/** The pool of light a lamp throws on the pavement at night. */
+function createLampPoolMaterial(): ShaderMaterial {
+  return new ShaderMaterial({
+    vertexShader: /* glsl */ `
+varying vec2 vUv;
+
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+}
+`,
+    fragmentShader: /* glsl */ `
+uniform float uNight;
+varying vec2 vUv;
+
+void main() {
+  float d = length(vUv - 0.5) * 2.0;
+  float a = pow(clamp(1.0 - d, 0.0, 1.0), 1.6) * 0.6 * smoothstep(0.35, 0.85, uNight);
+  if (a < 0.003) discard;
+  gl_FragColor = vec4(1.0, 0.55, 0.18, a);
+  #include <colorspace_fragment>
+}
+`,
+    uniforms: { uNight: shared.uNight },
+    transparent: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+  });
+}
+
+/**
+ * Street lamps along the streets, every LAMP_EVERY_M metres, on alternate
+ * sides. Off by day, lit at night. Only the ones close to the camera exist:
+ * the set is rebuilt when the view moves.
+ */
+export function StreetLamps({ roads }: { roads: Polyline[] }) {
+  const posts = useRef<InstancedMesh>(null);
+  const heads = useRef<InstancedMesh>(null);
+  const pools = useRef<InstancedMesh>(null);
+  const postGeometry = useMemo(createLampPostGeometry, []);
+  const headGeometry = useMemo(() => new BoxGeometry(1.0, 0.35, 0.55), []);
+  const poolGeometry = useMemo(() => new PlaneGeometry(18, 18).rotateX(-Math.PI / 2), []);
+  const headMaterial = useMemo(createLampHeadMaterial, []);
+  const poolMaterial = useMemo(createLampPoolMaterial, []);
+
+  // Every lamp in the city, filed by area: x, y and the direction of its arm.
+  const lamps = useMemo(() => {
+    const grid = new Map<number, number[]>();
+    const all: number[] = [];
+    roads.forEach((road, r) => {
+      const n = road.points.length / 2;
+      let carry = (r * 7.3) % LAMP_EVERY_M;
+      let side = r % 2 ? 1 : -1;
+      for (let k = 1; k < n; k++) {
+        const ax = road.points[(k - 1) * 2];
+        const ay = road.points[(k - 1) * 2 + 1];
+        const bx = road.points[k * 2];
+        const by = road.points[k * 2 + 1];
+        const len = Math.hypot(bx - ax, by - ay);
+        if (len < 0.01) continue;
+        const ux = (bx - ax) / len;
+        const uy = (by - ay) / len;
+        let d = carry;
+        for (; d < len; d += LAMP_EVERY_M) {
+          const off = LAMP_SIDE_M[Math.min(2, road.cls)] * side;
+          const x = ax + ux * d - uy * off;
+          const y = ay + uy * d + ux * off;
+          // The arm reaches back over the street, towards its middle.
+          const i = all.length / 3;
+          all.push(x, y, Math.atan2(-ux * side, uy * side));
+          const key = Math.floor(x / 250) * 100003 + Math.floor(y / 250);
+          const cell = grid.get(key);
+          if (cell) cell.push(i);
+          else grid.set(key, [i]);
+          side = -side;
+        }
+        carry = d - len;
+      }
+    });
+    return { all: Float32Array.from(all), grid };
+  }, [roads]);
+
+  const view = useViewBox();
+  const last = useRef({ x: NaN, y: NaN, zoom: NaN });
+  const dummy = useMemo(() => new Object3D(), []);
+
+  useFrame(() => {
+    const p = posts.current;
+    const h = heads.current;
+    const l = pools.current;
+    if (!p || !h || !l) return;
+    const { box, zoom } = view();
+    const visible = zoom >= LAMP_ZOOM;
+    p.visible = h.visible = l.visible = visible;
+    if (!visible) {
+      last.current.zoom = NaN;
+      return;
+    }
+    // Rebuild only when the view has moved or zoomed noticeably.
+    const cx = (box[0] + box[2]) / 2;
+    const cy = (box[1] + box[3]) / 2;
+    const step = (box[2] - box[0]) * 0.08;
+    const prev = last.current;
+    if (Math.abs(cx - prev.x) < step && Math.abs(cy - prev.y) < step && Math.abs(zoom / prev.zoom - 1) < 0.08) return;
+    last.current = { x: cx, y: cy, zoom };
+
+    let count = 0;
+    const margin = 120;
+    for (let gx = Math.floor((box[0] - margin) / 250); gx <= Math.floor((box[2] + margin) / 250); gx++) {
+      for (let gy = Math.floor((box[1] - margin) / 250); gy <= Math.floor((box[3] + margin) / 250); gy++) {
+        for (const i of lamps.grid.get(gx * 100003 + gy) ?? []) {
+          if (count >= MAX_LAMPS) break;
+          const x = lamps.all[i * 3];
+          const y = lamps.all[i * 3 + 1];
+          const heading = lamps.all[i * 3 + 2];
+          dummy.position.set(x, 0.4, -y);
+          dummy.rotation.set(0, heading, 0);
+          dummy.updateMatrix();
+          p.setMatrixAt(count, dummy.matrix);
+          // The head at the end of the arm, and the pool of light under it.
+          const hx = x + Math.cos(heading) * 1.4;
+          const hy = y + Math.sin(heading) * 1.4;
+          dummy.position.set(hx, 0.4 + LAMP_HEIGHT - 0.3, -hy);
+          dummy.updateMatrix();
+          h.setMatrixAt(count, dummy.matrix);
+          dummy.position.set(hx, 0.75, -hy);
+          dummy.updateMatrix();
+          l.setMatrixAt(count, dummy.matrix);
+          count++;
+        }
+      }
+    }
+    p.count = h.count = l.count = count;
+    p.instanceMatrix.needsUpdate = h.instanceMatrix.needsUpdate = l.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <>
+      <instancedMesh ref={posts} args={[postGeometry, undefined, MAX_LAMPS]} raycast={noRaycast} frustumCulled={false}>
+        <meshLambertMaterial color="#6b6f76" />
+      </instancedMesh>
+      <instancedMesh ref={heads} args={[headGeometry, headMaterial, MAX_LAMPS]} raycast={noRaycast} frustumCulled={false} />
+      <instancedMesh ref={pools} args={[poolGeometry, poolMaterial, MAX_LAMPS]} renderOrder={2.5} raycast={noRaycast} frustumCulled={false} />
+    </>
   );
 }
