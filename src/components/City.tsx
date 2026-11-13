@@ -11,6 +11,7 @@ import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type F
 import { Bridge, loadCover, loadPlan, Parks, type CoverData, type PlanData } from "./Extras";
 import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
 import { Daylight, SunClock } from "./Daylight";
+import { Festivities } from "./Festivities";
 import { describe, useWeather, WeatherEffects, type Weather } from "./Weather";
 import { Bikes, CruiseShip, Funiculars, Gulls, SantaJusta, Terraces, Viewpoints } from "./MoreLife";
 import Panel from "./Panel";
@@ -722,6 +723,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {street && <Buses lines={street.bus} />}
       {street && roads && <People roads={roads.lines} crossings={street.crossings} />}
       {roads && <StreetLamps roads={roads.lines} />}
+      {roads && <Festivities roads={roads.lines} />}
       {street && <Funiculars lines={street.funiculars} />}
       {street?.santaJusta && <SantaJusta at={street.santaJusta} />}
       {street && <Bikes lines={street.cycle} />}
