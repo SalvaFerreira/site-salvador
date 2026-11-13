@@ -747,6 +747,7 @@ button:focus-visible {
 /* ?shot: nothing but the city */
 .shot .topbar,
 .shot .controls,
+.shot .place-strip,
 .shot .colour-key,
 .shot .intro,
 .shot .attribution,
@@ -814,25 +815,157 @@ button:focus-visible {
   margin-top: 72px;
 }
 
+/* Strip of places along the bottom: phones only */
+.place-strip {
+  display: none;
+}
+
+.attr-short {
+  display: none;
+}
+
 @media (max-width: 800px) {
   .panel {
     top: 45%;
     width: 100%;
     padding: 20px 20px 40px;
+    border-radius: 14px 14px 0 0;
     box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.25);
-  }
-
-  .topbar nav {
-    padding-left: 0;
-    border-left: 0;
   }
 
   .colour-key {
     display: none;
   }
+}
+
+/* Phones */
+@media (max-width: 700px) {
+  .topbar {
+    top: 8px;
+    left: 8px;
+    width: calc(100% - 16px);
+    gap: 2px 12px;
+    padding: 9px 12px 10px;
+  }
+
+  .topbar .name {
+    font-size: 16px;
+  }
+
+  .topbar .thesis {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .topbar nav {
+    gap: 12px;
+  }
+
+  .topbar nav a,
+  .topbar nav button {
+    font-size: 12px;
+  }
+
+  /* Labels: the name only; places off screen are in the strip instead. */
+  .place-label {
+    gap: 6px;
+    padding: 5px 10px 5px 8px;
+    font-size: 13px;
+  }
+
+  .place-what,
+  .place-label.is-away {
+    display: none;
+  }
+
+  .place-strip {
+    position: fixed;
+    z-index: 10;
+    left: 0;
+    right: 0;
+    bottom: 58px;
+    display: flex;
+    gap: 6px;
+    padding: 0 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .place-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .place-chip {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 13px 8px 10px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--chip);
+    color: var(--paper);
+    font: 14px/1.2 var(--serif);
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+
+  .controls {
+    left: 8px;
+    bottom: 8px;
+  }
+
+  .panel-open .controls {
+    display: none;
+  }
+
+  /* Pinch to zoom: no + and - buttons. */
+  .controls #zoom-in,
+  .controls #zoom-out {
+    display: none !important;
+  }
 
   .attribution {
-    max-width: 45%;
+    right: 8px;
+    bottom: 8px;
+    max-width: 52%;
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+
+  .attr-long {
+    display: none;
+  }
+
+  .attr-short {
+    display: inline;
+  }
+
+  .panel {
+    padding-bottom: 72px;
+  }
+
+  .intro {
+    padding: 20px 20px 22px;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .intro h2 {
+    font-size: 24px;
+  }
+
+  .intro-actions {
+    flex-wrap: wrap;
+    gap: 12px 16px;
+  }
+}
+
+/* Touch screens: no hover, so a tap opens the place straight away. */
+@media (hover: none) {
+  .place-more {
+    display: none;
   }
 }
 

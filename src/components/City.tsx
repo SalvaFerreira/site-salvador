@@ -136,6 +136,12 @@ const MAX_ZOOM = 5;
 const NOW_LABEL_Y = 26;
 const FLIGHT_SECONDS = 2.4;
 const PANEL_WIDTH_PX = 620;
+/** Screens this wide or narrower get the phone layout (see global.css). */
+const NARROW_PX = 700;
+/** On a phone the panel starts this far down the screen (top: 45% in global.css). */
+const PHONE_PANEL_TOP = 0.45;
+/** Phones: fewer pixels to fill, so the city stays smooth. */
+const PHONE = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
 const noRaycast = () => null;
 
@@ -366,6 +372,9 @@ function CameraRig({ place, overview, reducedMotion, view, panelOpen, api }: Rig
       if (panelOpen && size.width > 800 && !SHOT) {
         // Look to the right of the place so it sits in the part of the screen the panel leaves free.
         target.addScaledVector(SCREEN_RIGHT, Math.min(PANEL_WIDTH_PX, size.width / 2) / 2 / place.zoom);
+      } else if (panelOpen && !SHOT) {
+        // Narrow screens: the panel takes the bottom 55%; put the place in the middle of the top part.
+        target.addScaledVector(SCREEN_UP, -(size.height * (0.5 - PHONE_PANEL_TOP / 2)) / (place.zoom * SIN_ELEVATION));
       }
       if (first.current) {
         // A shared link opens already at its place: no flight on first paint.
@@ -471,7 +480,10 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
       topEdge.current = (document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 54) + 12;
     }
     const top = topEdge.current;
-    const bottom = size.height - 104; // clear of the controls and the colour key
+    const narrow = size.width <= NARROW_PX;
+    const bottom = narrow
+      ? (panelOpen ? size.height * PHONE_PANEL_TOP : size.height - 118) - 8 // clear of the panel, or of the strip of places
+      : size.height - 104; // clear of the controls and the colour key
     const boxes: { x: number; y: number; w: number; h: number }[] = [];
 
     for (const spot of spots.current ?? []) {
@@ -951,6 +963,11 @@ export default function City({
   usePageButton("tour-start", true, startTour);
   usePageButton("intro-tour", true, startTour);
 
+  // On phones the map controls step aside while a panel is open (global.css).
+  useEffect(() => {
+    document.documentElement.classList.toggle("panel-open", stop !== null);
+  }, [stop]);
+
   // The welcome card (CityPage.astro) gives way to any place that opens.
   useEffect(() => {
     if (selected >= 0) document.getElementById("intro")?.setAttribute("hidden", "");
@@ -1015,7 +1032,7 @@ export default function City({
         <Canvas
           orthographic
           flat
-          dpr={[1, 2]}
+          dpr={PHONE ? [1, 1.5] : [1, 2]}
           gl={{ antialias: true, stencil: true, powerPreference: "high-performance" }}
           camera={{ position: VIEW_FROM.clone().multiplyScalar(CAMERA_DISTANCE).add(BAIXA), zoom: startZoom(), near: 100, far: 30000 }}
         >
@@ -1069,6 +1086,23 @@ export default function City({
             </button>
           ))}
         </div>
+      )}
+
+      {!stop && !SHOT && (
+        <nav className="place-strip" aria-label="Places">
+          {labelled.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className={`place-chip${s.off ? " is-off" : ""}`}
+              style={{ "--dot": colourOf(s) } as React.CSSProperties}
+              onClick={() => select(s.members[0])}
+            >
+              <span className="place-dot" aria-hidden="true" />
+              {s.label}
+            </button>
+          ))}
+        </nav>
       )}
 
       {stop && current && !SHOT && (
