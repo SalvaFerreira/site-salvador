@@ -39,6 +39,10 @@ export interface StreetData {
   /** Cafés, restaurants and bars with tables outside, [x, y]. */
   terraces: number[][];
   cycle: Polyline[];
+  /** Statues, columns, obelisks, busts and sculptures: [x, y, kind, height] (kinds in 07_street.py). */
+  monuments: number[][];
+  /** Hand-made landmarks: {name: [x, y, angle, length, width]} (07_street.py). */
+  landmarks: Record<string, number[]>;
 }
 
 interface StreetIndex {
@@ -52,6 +56,8 @@ interface StreetIndex {
   viewpoints?: number[][];
   terraces?: number[][];
   cycle?: { file: string; unitsPerMetre: number };
+  monuments?: number[][];
+  landmarks?: Record<string, number[]>;
 }
 
 /** Reads street.json, street.bin and bus.bin (layouts in scripts/07_street.py). */
@@ -99,6 +105,8 @@ export async function loadStreet(): Promise<StreetData> {
     viewpoints: index.viewpoints ?? [],
     terraces: index.terraces ?? [],
     cycle,
+    monuments: index.monuments ?? [],
+    landmarks: index.landmarks ?? {},
   };
 }
 

@@ -36,6 +36,11 @@ const projects = defineCollection({
      * "contact" is not on the map; it opens from the top bar, at /contact.
      */
     kind: z.enum(["work", "now", "contact"]).default("work"),
+    /**
+     * Marks a spot instead of the building at the coordinates (for a landmark drawn
+     * by hand, like the Arco da Rua Augusta): the label stands this many metres up.
+     */
+    spot: z.number().optional(),
     /** "off" keeps the building dark. */
     lights: z.enum(["on", "off"]).default("on"),
   }),

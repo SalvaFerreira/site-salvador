@@ -64,6 +64,9 @@ def download():
     D.fetch("cycleways", 'way["highway"="cycleway"](' + area + ");" + NL + "out tags geom;")
     D.fetch("viewpoints", 'nwr["tourism"="viewpoint"]["name"~"^Miradouro"](' + area + ");" + NL + "out center tags;")
     D.fetch("terraces", 'node["amenity"~"^(cafe|restaurant|bar)$"]["outdoor_seating"="yes"](' + area + ");" + NL + "out;")
+    D.fetch("monuments", "(" + 'nwr["historic"~"^(memorial|monument)$"](' + area + ");"
+            + 'nwr["tourism"="artwork"]["artwork_type"~"^(statue|sculpture|bust)$"](' + area + ");"
+            + 'nwr["man_made"~"^(obelisk|column)$"](' + area + ");" + ");" + NL + "out center tags;")
 
 
 def street_lines():
@@ -212,6 +215,97 @@ def named_points(name, view, land):
     return out
 
 
+STATUE, COLUMN, OBELISK, BUST, SCULPTURE = range(5)
+# Default heights in metres, when OpenStreetMap gives none.
+MONUMENT_HEIGHT = {STATUE: 7, COLUMN: 27, OBELISK: 18, BUST: 3, SCULPTURE: 4}
+# Which kind wins when two are mapped at the same spot.
+MONUMENT_RANK = [COLUMN, OBELISK, STATUE, SCULPTURE, BUST]
+
+
+def monument_kind(tags):
+    """What to draw for a memorial, monument or artwork; None for plaques, benches and the like."""
+    memorial = tags.get("memorial", "")
+    artwork = tags.get("artwork_type", "")
+    height = P.number(tags.get("height")) or 0
+    if tags.get("man_made") == "obelisk" or "obelisk" in memorial:
+        return OBELISK
+    if "column" in memorial or (tags.get("historic") == "monument" and height >= 20):
+        return COLUMN
+    if "statue" in memorial or artwork == "statue":
+        return STATUE
+    if "bust" in memorial or artwork == "bust":
+        return BUST
+    if "sculpture" in memorial or artwork == "sculpture":
+        return SCULPTURE
+    # Columns with no name are mostly parts of buildings, not monuments.
+    return None
+
+
+# Famous monuments whose OpenStreetMap tags do not say what they look like: kind and height.
+MONUMENT_OVERRIDES = {
+    "Dom Pedro IV": (COLUMN, 27),
+    "Dom José I": (STATUE, 14),
+    "Aos Restauradores de 1640": (OBELISK, 30),
+}
+# Drawn by hand in the site (Landmarks.tsx), so not as a generic monument.
+HAND_MADE = {"Arco do Triunfo da Rua Augusta", "Padrão dos Descobrimentos"}
+
+
+def monuments(view, land):
+    """Statues, busts, sculptures, obelisks and commemorative columns: [x, y, kind, height]."""
+    found = []
+    for el in P.load("monuments"):
+        tags = el.get("tags", {})
+        name = tags.get("name", "")
+        # The hand-made landmarks, and anything mapped as part of them.
+        if name in HAND_MADE or any(h in name for h in ("Padrão dos Descobrimentos", "Arco do Triunfo")):
+            continue
+        kind = monument_kind(tags)
+        override = MONUMENT_OVERRIDES.get(name)
+        if override:
+            kind = override[0]
+        xy = center_xy(el)
+        if kind is None or not xy or not view.contains(Point(*xy)) or not land.contains(Point(*xy)):
+            continue
+        height = (override[1] if override else None) or P.number(tags.get("height")) or MONUMENT_HEIGHT[kind]
+        # A statue, bust or sculpture taller than this is a mapping slip (the height of a building nearby).
+        cap = 60 if kind in (COLUMN, OBELISK) else 16
+        found.append((MONUMENT_RANK.index(kind), xy, kind, min(height, cap)))
+    # The same monument is often mapped twice (a point and an area): keep one, the grander kind.
+    kept = []
+    for rank, (x, y), kind, height in sorted(found, key=lambda f: f[0]):
+        if all((x - k[0]) ** 2 + (y - k[1]) ** 2 > 15 ** 2 for k in kept):
+            kept.append([round(x, 1), round(y, 1), kind, round(height, 1)])
+    return kept
+
+
+def landmarks():
+    """Where the hand-made landmarks stand, from their outlines in OpenStreetMap:
+    {name: [x, y, angle of the long side (radians from east towards north), length, width]}."""
+    from config import EXTRA_STRIPS, TILES
+    names = [f"buildings_{i}_{j}" for i in range(TILES) for j in range(TILES)] + ["building_relations"]
+    names += [f"buildings_extra_{strip[0]}" for strip in EXTRA_STRIPS] + [f"building_relations_extra_{strip[0]}" for strip in EXTRA_STRIPS]
+    out = {}
+    for name in names:
+        if not (RAW / f"{name}.json").exists():
+            continue
+        for el in P.load(name):
+            label = el.get("tags", {}).get("name", "")
+            if label not in HAND_MADE or label in out:
+                continue
+            for poly in P.polygons_of(P.element_polygon(el)):
+                box = poly.minimum_rotated_rectangle
+                pts = list(box.exterior.coords)[:4]
+                sides = [(pts[i], pts[(i + 1) % 4]) for i in range(2)]
+                (a, b), (c, d) = sides
+                la = math.hypot(b[0] - a[0], b[1] - a[1])
+                lc = math.hypot(d[0] - c[0], d[1] - c[1])
+                (p0, p1), length, width = ((a, b), la, lc) if la >= lc else ((c, d), lc, la)
+                angle = math.atan2(p1[1] - p0[1], p1[0] - p0[0])
+                out[label] = [round(poly.centroid.x, 1), round(poly.centroid.y, 1), round(angle, 3), round(length, 1), round(width, 1)]
+    return out
+
+
 def cycle_paths(land):
     lines = []
     for el in P.load("cycleways"):
@@ -247,6 +341,8 @@ def main():
         "santaJusta": (named_points("santa_justa", view, land) or [None])[0],
         "viewpoints": named_points("viewpoints", view, land),
         "terraces": named_points("terraces", view, land),
+        "monuments": monuments(view, land),
+        "landmarks": landmarks(),
         "cycle": {k: v for k, v in cycle_paths(land).items() if k in ("file", "unitsPerMetre", "lines", "bytes", "km")},
     }
     text = json.dumps(index, separators=(",", ":"), ensure_ascii=False)
@@ -256,6 +352,9 @@ def main():
     print(f"street.json: {len(index['squares'])} squares, {len(index['vascoDaGama']['lines'])} bridge lines, {len(text.encode()) / 1e3:.0f} kB")
     print(f"funiculars: {[f['name'] for f in index['funiculars']]}, Santa Justa: {index['santaJusta']}")
     print(f"viewpoints: {len(index['viewpoints'])}, terraces: {len(index['terraces'])}, cycle paths: {index['cycle']}")
+    kinds = ["statue", "column", "obelisk", "bust", "sculpture"]
+    print("monuments:", {k: sum(1 for m in index["monuments"] if m[2] == i) for i, k in enumerate(kinds)})
+    print("landmarks:", index["landmarks"])
     total = sum(f.stat().st_size for f in OUT.iterdir() if f.is_file())
     print(f"all city data: {total / 1e6:.2f} MB")
 

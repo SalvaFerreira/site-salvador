@@ -11,9 +11,10 @@ import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type F
 import { Bridge, loadCover, loadPlan, Parks, type CoverData, type PlanData } from "./Extras";
 import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
 import { Daylight, SunClock } from "./Daylight";
+import { Landmarks } from "./Landmarks";
 import { Festivities, type Holiday } from "./Festivities";
 import { describe, useWeather, WeatherEffects, type Weather } from "./Weather";
-import { Bikes, CruiseShip, Funiculars, Gulls, SantaJusta, Terraces, Viewpoints } from "./MoreLife";
+import { Bikes, CruiseShip, Funiculars, Gulls, Monuments, SantaJusta, Terraces, Viewpoints } from "./MoreLife";
 import Panel from "./Panel";
 import { Buses, Calcada, Crossings, loadStreet, People, StreetLamps, TrafficLights, VascoDaGama, type StreetData } from "./Street";
 
@@ -35,6 +36,8 @@ export interface Project {
   role?: string;
   /** Short role for the map label. */
   tagline?: string;
+  /** A spot, not a building: the label stands this many metres up (hand-made landmarks). */
+  spot?: number;
   period?: string;
   coordinates: [number, number];
   /** When it started (ISO), if known. */
@@ -203,14 +206,14 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
           const index = s.members[0];
           const p = projects[index];
           const [x, y] = project(m, p.coordinates[0], p.coordinates[1]);
-          return { index, x, y, dark: s.off, kind: p.kind };
+          return { index, x, y, dark: s.off, kind: p.kind, spot: p.spot };
         });
-      const targets = located.filter((t) => t.kind === "work");
-      // The bridge is a spot, not a building.
+      const targets = located.filter((t) => t.kind === "work" && t.spot === undefined);
+      // The bridge, and hand-made landmarks, are spots, not buildings.
       setPlaces(
         located
-          .filter((t) => t.kind !== "work")
-          .map((t) => ({ index: t.index, x: t.x, z: -t.y, height: 0, radius: 0, labelY: NOW_LABEL_Y, zoom: 1.4 })),
+          .filter((t) => t.kind !== "work" || t.spot !== undefined)
+          .map((t) => ({ index: t.index, x: t.x, z: -t.y, height: 0, radius: 0, labelY: t.spot ?? NOW_LABEL_Y, zoom: t.spot ? 2.2 : 1.4 })),
       );
       const best = new Map<number, number>();
 
@@ -788,6 +791,8 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {street && <Bikes lines={street.cycle} />}
       {street && <Viewpoints points={street.viewpoints} />}
       {street && <Terraces points={street.terraces} />}
+      {street && <Monuments items={street.monuments} />}
+      {street && <Landmarks places={street.landmarks} />}
       {manifest && <CruiseShip manifest={manifest} />}
       {plan && <Gulls centres={gullCentres} />}
       {street && <VascoDaGama bridge={street.bridge} />}

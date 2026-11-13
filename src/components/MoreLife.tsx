@@ -3,7 +3,7 @@
 // on the cycle paths, people at the miradouros and café terraces.
 import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
-import { BoxGeometry, BufferAttribute, BufferGeometry, Color, Object3D, ShaderMaterial, type Group, type InstancedMesh } from "three";
+import { BoxGeometry, BufferAttribute, BufferGeometry, Color, ConeGeometry, CylinderGeometry, Object3D, ShaderMaterial, type Group, type InstancedMesh } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { createLightMaterial, quality, shared, withNight } from "../city/environment";
 import { createTrackMaterial } from "../city/groundMaterials";
@@ -446,6 +446,143 @@ export function Terraces({ points }: { points: number[][] }) {
       <instancedMesh ref={stands} args={[standGeometry, undefined, count]} raycast={noRaycast}>
         <meshLambertMaterial color="#4a4d53" />
       </instancedMesh>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- monuments
+
+const STONE = "#ddd6c6";
+const BRONZE = "#6f7d74";
+const MONUMENT_ZOOM = 0.8;
+
+/** Any geometry in one colour, ready to merge. */
+function colored(g: BufferGeometry, color: string): BufferGeometry {
+  const geometry = g.index ? g.toNonIndexed() : g;
+  if (geometry.getAttribute("uv")) geometry.deleteAttribute("uv");
+  const c = new Color(color);
+  const colors = new Float32Array(geometry.getAttribute("position").count * 3);
+  for (let i = 0; i < colors.length; i += 3) colors.set([c.r, c.g, c.b], i);
+  geometry.setAttribute("color", new BufferAttribute(colors, 3));
+  return geometry;
+}
+
+/** A standing figure in bronze, `h` metres tall, its feet at y. */
+function figure(y: number, h: number): BufferGeometry[] {
+  return [
+    colored(new BoxGeometry(h * 0.28, h * 0.42, h * 0.2).translate(0, y + h * 0.21, 0), BRONZE), // legs and robe
+    colored(new BoxGeometry(h * 0.34, h * 0.36, h * 0.24).translate(0, y + h * 0.6, 0), BRONZE), // body
+    colored(new BoxGeometry(h * 0.14, h * 0.14, h * 0.14).translate(0, y + h * 0.86, 0), BRONZE), // head
+  ];
+}
+
+/** The five kinds, each `height` metres tall at scale 1 (kinds and heights as in 07_street.py). */
+const MONUMENT_MODELS: { height: number; build: () => BufferGeometry }[] = [
+  // Statue on a pedestal.
+  {
+    height: 7,
+    build: () =>
+      mergeGeometries([
+        colored(new BoxGeometry(3.2, 0.6, 3.2).translate(0, 0.3, 0), STONE),
+        colored(new BoxGeometry(2.4, 2.6, 2.4).translate(0, 1.9, 0), STONE),
+        ...figure(3.2, 3.8),
+      ]),
+  },
+  // Commemorative column with a statue on top.
+  {
+    height: 27,
+    build: () =>
+      mergeGeometries([
+        colored(new BoxGeometry(9, 1.2, 9).translate(0, 0.6, 0), STONE),
+        colored(new BoxGeometry(5, 4, 5).translate(0, 3.2, 0), STONE),
+        colored(new CylinderGeometry(1.1, 1.3, 15, 10).translate(0, 12.7, 0), STONE),
+        colored(new BoxGeometry(2.8, 1, 2.8).translate(0, 20.7, 0), STONE),
+        ...figure(21.2, 5.8),
+      ]),
+  },
+  // Obelisk: four faces narrowing to a point.
+  {
+    height: 18,
+    build: () =>
+      mergeGeometries([
+        colored(new BoxGeometry(4, 1.6, 4).translate(0, 0.8, 0), STONE),
+        colored(new CylinderGeometry(0.9, 1.5, 15, 4).rotateY(Math.PI / 4).translate(0, 9.1, 0), STONE),
+        colored(new ConeGeometry(1.27, 1.6, 4).rotateY(Math.PI / 4).translate(0, 17.4, 0), STONE),
+      ]),
+  },
+  // Bust on a short pillar.
+  {
+    height: 3,
+    build: () =>
+      mergeGeometries([
+        colored(new BoxGeometry(0.9, 2, 0.9).translate(0, 1, 0), STONE),
+        colored(new BoxGeometry(0.8, 0.5, 0.5).translate(0, 2.25, 0), BRONZE),
+        colored(new BoxGeometry(0.45, 0.55, 0.45).translate(0, 2.75, 0), BRONZE),
+      ]),
+  },
+  // Sculpture: a low base and a turned bronze form.
+  {
+    height: 4,
+    build: () =>
+      mergeGeometries([
+        colored(new BoxGeometry(2.4, 0.5, 2.4).translate(0, 0.25, 0), STONE),
+        colored(new BoxGeometry(1.2, 2.6, 1.2).rotateY(Math.PI / 4).rotateZ(0.25).translate(0, 1.9, 0), BRONZE),
+        colored(new BoxGeometry(0.9, 0.9, 0.9).rotateX(0.6).rotateY(0.4).translate(0.2, 3.4, 0), BRONZE),
+      ]),
+  },
+];
+
+/**
+ * Statues, busts, sculptures, obelisks and commemorative columns where they
+ * are mapped in OpenStreetMap: one instanced mesh per kind, close up only.
+ * Drawn a little larger than life, like everything small here.
+ */
+export function Monuments({ items }: { items: number[][] }) {
+  const meshes = useRef<(InstancedMesh | null)[]>([]);
+  const geometries = useMemo(() => MONUMENT_MODELS.map((m) => m.build()), []);
+  const byKind = useMemo(() => MONUMENT_MODELS.map((_, k) => items.filter((m) => m[2] === k)), [items]);
+
+  useLayoutEffect(() => {
+    const o = new Object3D();
+    const random = randomFrom(71);
+    byKind.forEach((list, k) => {
+      const m = meshes.current[k];
+      if (!m) return;
+      list.forEach(([x, y, , height], i) => {
+        const s = Math.max(1.3, height / MONUMENT_MODELS[k].height);
+        o.position.set(x, 0.45, -y);
+        o.rotation.set(0, random() * Math.PI * 2, 0);
+        o.scale.setScalar(s);
+        o.updateMatrix();
+        m.setMatrixAt(i, o.matrix);
+      });
+      m.instanceMatrix.needsUpdate = true;
+      m.computeBoundingSphere();
+    });
+  }, [byKind]);
+
+  const view = useViewBox();
+  useFrame(() => {
+    const visible = view().zoom >= MONUMENT_ZOOM;
+    for (const m of meshes.current) if (m) m.visible = visible;
+  });
+
+  return (
+    <>
+      {byKind.map((list, k) =>
+        list.length ? (
+          <instancedMesh
+            key={k}
+            ref={(m) => {
+              meshes.current[k] = m;
+            }}
+            args={[geometries[k], undefined, list.length]}
+            raycast={noRaycast}
+          >
+            <meshLambertMaterial vertexColors />
+          </instancedMesh>
+        ) : null,
+      )}
     </>
   );
 }

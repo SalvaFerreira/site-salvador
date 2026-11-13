@@ -7,6 +7,8 @@ role: "Personal project"
 tagline: "How this map was built"
 # The arch at the top of Praça do Comércio: every coordinate on the map is measured from the square.
 coordinates: [-9.136816, 38.708443]
+# The arch is modelled by hand, not a building: the label stands above it.
+spot: 36
 order: 9.5
 date: "2026-11"
 images: []

@@ -148,6 +148,10 @@ def read_buildings():
             tags = el.get("tags", {})
             if tags.get("location") == "underground" or str(tags.get("layer", "")).startswith("-"):
                 continue
+            # Statues, columns, arches and other monuments are drawn as models (07_street.py and
+            # Landmarks in the site), not as a block raised from their outline.
+            if tags.get("historic") in ("memorial", "monument") or tags.get("building") in ("pillar", "monument"):
+                continue
             if "bridge:support" in tags:
                 for poly in polygons_of(element_polygon(el)):
                     minx, miny, maxx, maxy = poly.bounds
