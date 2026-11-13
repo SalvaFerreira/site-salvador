@@ -17,7 +17,7 @@ import {
   type Mesh,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { createFlatMaterial, shared } from "../city/environment";
+import { createFlatMaterial, createLightMaterial, shared } from "../city/environment";
 import { createRunwayMaterial, createShadowMaterial, createTrackMaterial, createTrussMaterial } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { SHADOW_PER_M } from "../city/loadCity";
@@ -608,6 +608,19 @@ function createFerryGeometry(): BufferGeometry {
   ]);
 }
 
+/** A ferry's lights after dark: its row of cabin windows and the masthead light. */
+function createFerryLights(): BufferGeometry {
+  return mergeGeometries([
+    new BoxGeometry(18.4, 0.7, 7.2).translate(-1, 4.6, 0),
+    new BoxGeometry(0.8, 0.8, 0.8).translate(4, 8.2, 0),
+  ]);
+}
+
+/** A sailing boat's light at the top of the mast. */
+function createSailLights(): BufferGeometry {
+  return new BoxGeometry(0.7, 0.7, 0.7).translate(1.5, 12.3, 0);
+}
+
 /** Small sailing boat: hull and one triangular sail. */
 function createSailGeometry(): BufferGeometry {
   const sail = new BufferGeometry();
@@ -626,8 +639,21 @@ interface Boat {
   wake: number;
 }
 
-function Fleet({ boats, geometry, wakeWidth }: { boats: Boat[]; geometry: BufferGeometry; wakeWidth: number }) {
+function Fleet({
+  boats,
+  geometry,
+  lightGeometry,
+  wakeWidth,
+}: {
+  boats: Boat[];
+  geometry: BufferGeometry;
+  /** Lights that show at night, moving with each boat. */
+  lightGeometry: BufferGeometry;
+  wakeWidth: number;
+}) {
   const hulls = useRef<InstancedMesh>(null);
+  const lights = useRef<InstancedMesh>(null);
+  const lightMaterial = useMemo(() => createLightMaterial("#ffd9a0"), []);
   const wakes = useRef<InstancedMesh>(null);
   const wake = useMemo(() => new PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(-0.5, 0, 0), []);
   const dummy = useMemo(() => new Object3D(), []);
@@ -647,6 +673,7 @@ function Fleet({ boats, geometry, wakeWidth }: { boats: Boat[]; geometry: Buffer
       dummy.scale.setScalar(boat.scale);
       dummy.updateMatrix();
       h.setMatrixAt(i, dummy.matrix);
+      lights.current?.setMatrixAt(i, dummy.matrix);
       // No wake while waiting at a pier.
       const waiting = distance <= 0.5 || distance >= boat.path.total - 0.5;
       dummy.position.y = WATER_Y + 0.3;
@@ -656,6 +683,7 @@ function Fleet({ boats, geometry, wakeWidth }: { boats: Boat[]; geometry: Buffer
     });
     h.instanceMatrix.needsUpdate = true;
     w.instanceMatrix.needsUpdate = true;
+    if (lights.current) lights.current.instanceMatrix.needsUpdate = true;
   });
 
   const wakeMaterial = useMemo(() => createFlatMaterial("#dfeaf6", { opacity: 0.4, depthWrite: false }), []);
@@ -666,6 +694,7 @@ function Fleet({ boats, geometry, wakeWidth }: { boats: Boat[]; geometry: Buffer
         <meshLambertMaterial vertexColors side={DoubleSide} />
       </instancedMesh>
       <instancedMesh ref={wakes} args={[wake, wakeMaterial, boats.length]} raycast={noRaycast} frustumCulled={false} />
+      <instancedMesh ref={lights} args={[lightGeometry, lightMaterial, boats.length]} renderOrder={4} raycast={noRaycast} frustumCulled={false} />
     </>
   );
 }
@@ -674,6 +703,8 @@ function Fleet({ boats, geometry, wakeWidth }: { boats: Boat[]; geometry: Buffer
 export function Boats({ ferries, sails }: { ferries: number[][][]; sails: number[][][] }) {
   const ferryGeometry = useMemo(createFerryGeometry, []);
   const sailGeometry = useMemo(createSailGeometry, []);
+  const ferryLights = useMemo(createFerryLights, []);
+  const sailLights = useMemo(createSailLights, []);
   const ferryBoats = useMemo<Boat[]>(
     () => ferries.map((route, i) => ({ path: flatPath(route), speed: FERRY_SPEED, dwell: 25, offset: 40 + i * 140, wake: 70, scale: 2 })),
     [ferries],
@@ -685,8 +716,8 @@ export function Boats({ ferries, sails }: { ferries: number[][][]; sails: number
 
   return (
     <>
-      <Fleet boats={ferryBoats} geometry={ferryGeometry} wakeWidth={7} />
-      <Fleet boats={sailBoats} geometry={sailGeometry} wakeWidth={2.4} />
+      <Fleet boats={ferryBoats} geometry={ferryGeometry} lightGeometry={ferryLights} wakeWidth={7} />
+      <Fleet boats={sailBoats} geometry={sailGeometry} lightGeometry={sailLights} wakeWidth={2.4} />
     </>
   );
 }
@@ -701,6 +732,10 @@ const GLIDE_SLOPE = Math.tan((3 * Math.PI) / 180);
 const PLANE_SPEED = 72; // m/s
 const PLANE_EVERY_S = 150;
 const PLANE_SCALE = 1.6;
+/** Take-off: run along the runway, lift off, climb away over the river to the north-east. */
+const TAKEOFF_RUN_M = 1800;
+const CLIMB = Math.tan((8 * Math.PI) / 180);
+const TAKEOFF_GONE_M = 7500;
 
 /** A small airliner. Its nose points along +x. */
 function createPlaneGeometry(): BufferGeometry {
@@ -751,11 +786,23 @@ export function Airport({ cover, shapes }: { cover: CoverData; shapes: Map<numbe
   );
 }
 
-/** Every few minutes a plane comes in low over the city and lands on the main runway, as they do in Lisbon. */
+/**
+ * Every few minutes a plane: one comes in low over the city and lands on the
+ * main runway, as they do in Lisbon; the next one takes off. After dark the
+ * navigation lights show: red and green on the wing tips, a white strobe.
+ */
 export function Plane({ runways }: { runways: CoverData["runways"] }) {
-  const plane = useRef<Mesh>(null);
+  const plane = useRef<Group>(null);
   const shadow = useRef<Mesh>(null);
   const geometry = useMemo(createPlaneGeometry, []);
+  const lights = useMemo(
+    () => ({
+      red: createLightMaterial("#ff4a3a"),
+      green: createLightMaterial("#4dff7a"),
+      strobe: createLightMaterial("#ffffff", 1.1),
+    }),
+    [],
+  );
   const shadowMaterial = useMemo(createShadowMaterial, []);
   const route = useMemo(() => {
     // The longest runway, flown from its southern end: planes come in over the city.
@@ -777,17 +824,31 @@ export function Plane({ runways }: { runways: CoverData["runways"] }) {
     const p = plane.current;
     const s = shadow.current;
     if (!p || !s || !route) return;
-    const time = shared.uTime.value;
-    const travelled = ((time + 20) % PLANE_EVERY_S) * PLANE_SPEED;
+    const time = shared.uTime.value + 20;
+    const takingOff = Math.floor(time / PLANE_EVERY_S) % 2 === 1;
+    const t = time % PLANE_EVERY_S;
+    let d: number; // metres past the touchdown point, along the runway
+    let altitude: number;
+    let flying: boolean;
+    if (!takingOff) {
+      const travelled = t * PLANE_SPEED;
+      flying = travelled < APPROACH_M + ROLL_OUT_M;
+      d = travelled - APPROACH_M; // negative while still in the air
+      altitude = Math.max(0, -d) * GLIDE_SLOPE + 3;
+    } else {
+      // Even acceleration to flying speed over the take-off run, then a steady climb.
+      const accel = (PLANE_SPEED * PLANE_SPEED) / (2 * TAKEOFF_RUN_M);
+      const runTime = PLANE_SPEED / accel;
+      d = t < runTime ? 0.5 * accel * t * t : TAKEOFF_RUN_M + (t - runTime) * PLANE_SPEED;
+      altitude = Math.max(0, d - TAKEOFF_RUN_M) * CLIMB + 3;
+      flying = d < TAKEOFF_GONE_M;
+    }
     // Hidden between flights.
-    const flying = travelled < APPROACH_M + ROLL_OUT_M;
     p.visible = flying;
     s.visible = flying;
     if (!flying) return;
-    const d = travelled - APPROACH_M; // metres past the runway end; negative while still in the air
     const x = route.tx + route.dx * d;
     const y = route.ty + route.dy * d;
-    const altitude = Math.max(0, -d) * GLIDE_SLOPE + 3;
     const heading = Math.atan2(route.dy, route.dx);
     p.position.set(x, altitude, -y);
     p.rotation.y = heading;
@@ -799,9 +860,21 @@ export function Plane({ runways }: { runways: CoverData["runways"] }) {
 
   return (
     <>
-      <mesh ref={plane} geometry={geometry} raycast={noRaycast} visible={false} frustumCulled={false}>
-        <meshLambertMaterial vertexColors />
-      </mesh>
+      <group ref={plane} visible={false}>
+        <mesh geometry={geometry} raycast={noRaycast} frustumCulled={false}>
+          <meshLambertMaterial vertexColors />
+        </mesh>
+        {/* Navigation lights: red on the left wing tip, green on the right, a white strobe on the tail. */}
+        <mesh position={[-1, -0.4, -18.6]} material={lights.red} renderOrder={4} raycast={noRaycast}>
+          <boxGeometry args={[1.4, 1.4, 1.4]} />
+        </mesh>
+        <mesh position={[-1, -0.4, 18.6]} material={lights.green} renderOrder={4} raycast={noRaycast}>
+          <boxGeometry args={[1.4, 1.4, 1.4]} />
+        </mesh>
+        <mesh position={[-18, 6.8, 0]} material={lights.strobe} renderOrder={4} raycast={noRaycast}>
+          <boxGeometry args={[1.6, 1.6, 1.6]} />
+        </mesh>
+      </group>
       {/* The same shape pressed flat on the ground is its shadow. */}
       <mesh ref={shadow} geometry={geometry} material={shadowMaterial} scale={[1, 0.001, 1]} renderOrder={2} raycast={noRaycast} visible={false} frustumCulled={false} />
     </>

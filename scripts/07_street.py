@@ -5,7 +5,9 @@ Input:  OpenStreetMap via Overpass (cached in data/raw/), data/raw/_land.wkb and
         public/data/manifest.json (from 02_process.py), data/raw/roads_*.json
 Output: public/data/street.bin   crossings and traffic lights (layout below)
         public/data/bus.bin      bus lines (LXR1 lines, class = line number in street.json)
-        public/data/street.json  index, squares, bridge
+        public/data/cycle.bin    cycle paths (LXR1 lines)
+        public/data/street.json  index, squares, bridge, funiculars, the Santa Justa lift,
+                                 viewpoints (miradouros) and café terraces
 
 street.bin, little-endian, every coordinate in half metres from the scene origin:
     "LXS1", u32 crossings C, u32 lights L, u32 junctions J
@@ -56,6 +58,12 @@ def download():
             + 'way["name"~"^(' + names + ')$"]["place"="square"](' + area + ");"
             + 'relation["name"~"^(' + names + ')$"]["place"="square"](' + area + ");" + ");" + NL + "out body geom;")
     D.fetch("vasco_da_gama", 'way["name"="Ponte Vasco da Gama"]["bridge"](' + area + ");" + NL + "out tags geom;")
+    # Life in the city: funiculars, the Santa Justa lift, cycle paths, viewpoints and café terraces.
+    D.fetch("funiculars", 'way["railway"="funicular"](' + area + ");" + NL + "out tags geom;")
+    D.fetch("santa_justa", 'nwr["name"~"Elevador de Santa Justa"](' + area + ");" + NL + "out center tags;")
+    D.fetch("cycleways", 'way["highway"="cycleway"](' + area + ");" + NL + "out tags geom;")
+    D.fetch("viewpoints", 'nwr["tourism"="viewpoint"]["name"~"^Miradouro"](' + area + ");" + NL + "out center tags;")
+    D.fetch("terraces", 'node["amenity"~"^(cafe|restaurant|bar)$"]["outdoor_seating"="yes"](' + area + ");" + NL + "out;")
 
 
 def street_lines():
@@ -175,6 +183,47 @@ def vasco_da_gama(view, land):
     return {"deck": VDG_DECK_M, "lines": lines}
 
 
+def center_xy(el):
+    c = el.get("center") or ({"lat": el["lat"], "lon": el["lon"]} if "lat" in el else None)
+    if not c:
+        return None
+    (x, y), = P.local_coords([c])
+    return x, y
+
+
+def funiculars(view):
+    """The three funiculars (Glória, Bica, Lavra): each its track as a line, in metres."""
+    best = {}
+    for el in P.load("funiculars"):
+        line = LineString(P.local_coords(el["geometry"])).intersection(view)
+        name = el.get("tags", {}).get("name", str(el["id"]))
+        # Some are mapped as two tracks: one line per funicular, the longer.
+        if line.geom_type == "LineString" and line.length > 60 and (name not in best or line.length > best[name].length):
+            best[name] = line
+    return [{"name": name, "points": [[round(x, 1), round(y, 1)] for x, y in line.simplify(0.5).coords]} for name, line in best.items()]
+
+
+def named_points(name, view, land):
+    out = []
+    for el in P.load(name):
+        xy = center_xy(el)
+        if xy and view.contains(Point(*xy)) and land.buffer(30).contains(Point(*xy)):
+            out.append([round(xy[0], 1), round(xy[1], 1)])
+    return out
+
+
+def cycle_paths(land):
+    lines = []
+    for el in P.load("cycleways"):
+        line = LineString(P.local_coords(el["geometry"])).intersection(land)
+        for part in getattr(line, "geoms", [line]):
+            if part.geom_type == "LineString" and part.length > 80:
+                lines.append(part.simplify(1.0))
+    info = L.write_lines(OUT / "cycle.bin", lines, [0] * len(lines), 1)
+    info["km"] = round(sum(l.length for l in lines) / 1000, 1)
+    return info
+
+
 def main():
     download()
     manifest = json.loads((OUT / "manifest.json").read_text(encoding="utf-8"))
@@ -194,12 +243,19 @@ def main():
         "bus": {"file": bus["file"], "unitsPerMetre": bus["unitsPerMetre"], "lines": bus["lines"]},
         "squares": squares(),
         "vascoDaGama": vasco_da_gama(view, land),
+        "funiculars": funiculars(view),
+        "santaJusta": (named_points("santa_justa", view, land) or [None])[0],
+        "viewpoints": named_points("viewpoints", view, land),
+        "terraces": named_points("terraces", view, land),
+        "cycle": {k: v for k, v in cycle_paths(land).items() if k in ("file", "unitsPerMetre", "lines", "bytes", "km")},
     }
     text = json.dumps(index, separators=(",", ":"), ensure_ascii=False)
     (OUT / "street.json").write_text(text, encoding="utf-8")
     print(f"street.bin: {len(crossings)} crossings, {len(lights)} traffic lights in {junctions} junctions, {size / 1e3:.0f} kB")
     print(f"bus.bin: {len(bus['lines'])} lines, {bus['km']} km, {bus['bytes'] / 1e3:.0f} kB")
     print(f"street.json: {len(index['squares'])} squares, {len(index['vascoDaGama']['lines'])} bridge lines, {len(text.encode()) / 1e3:.0f} kB")
+    print(f"funiculars: {[f['name'] for f in index['funiculars']]}, Santa Justa: {index['santaJusta']}")
+    print(f"viewpoints: {len(index['viewpoints'])}, terraces: {len(index['terraces'])}, cycle paths: {index['cycle']}")
     total = sum(f.stat().st_size for f in OUT.iterdir() if f.is_file())
     print(f"all city data: {total / 1e6:.2f} MB")
 

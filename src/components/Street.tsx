@@ -30,6 +30,14 @@ export interface StreetData {
   squares: number[][][];
   bridge: { deck: number; lines: number[][][] };
   bus: Polyline[];
+  funiculars: { name: string; points: number[][] }[];
+  /** The Santa Justa lift, [x, y] in map metres. */
+  santaJusta: [number, number] | null;
+  /** Miradouros, [x, y]. */
+  viewpoints: number[][];
+  /** Cafés, restaurants and bars with tables outside, [x, y]. */
+  terraces: number[][];
+  cycle: Polyline[];
 }
 
 interface StreetIndex {
@@ -38,14 +46,20 @@ interface StreetIndex {
   bus: { file: string; unitsPerMetre: number };
   squares: number[][][];
   vascoDaGama: { deck: number; lines: number[][][] };
+  funiculars?: { name: string; points: number[][] }[];
+  santaJusta?: [number, number] | null;
+  viewpoints?: number[][];
+  terraces?: number[][];
+  cycle?: { file: string; unitsPerMetre: number };
 }
 
 /** Reads street.json, street.bin and bus.bin (layouts in scripts/07_street.py). */
 export async function loadStreet(): Promise<StreetData> {
   const index: StreetIndex = await (await fetch("/data/street.json")).json();
-  const [buffer, bus] = await Promise.all([
+  const [buffer, bus, cycle] = await Promise.all([
     fetch(`/data/${index.file}`).then((r) => r.arrayBuffer()),
     loadLines(index.bus.file, index.bus.unitsPerMetre),
+    index.cycle ? loadLines(index.cycle.file, index.cycle.unitsPerMetre) : Promise.resolve([]),
   ]);
   const view = new DataView(buffer);
   if (view.getUint32(0, true) !== 0x3153584c) throw new Error("street.bin: not an LXS1 file");
@@ -79,6 +93,11 @@ export async function loadStreet(): Promise<StreetData> {
     squares: index.squares,
     bridge: index.vascoDaGama,
     bus,
+    funiculars: index.funiculars ?? [],
+    santaJusta: index.santaJusta ?? null,
+    viewpoints: index.viewpoints ?? [],
+    terraces: index.terraces ?? [],
+    cycle,
   };
 }
 
@@ -361,13 +380,13 @@ function createBusGeometry(): BufferGeometry {
   ]);
 }
 
-interface BusLine {
+export interface BusLine {
   points: ArrayLike<number>;
   lengths: Float32Array;
   total: number;
 }
 
-function toLine(points: ArrayLike<number>): BusLine {
+export function toLine(points: ArrayLike<number>): BusLine {
   const n = points.length / 2;
   const lengths = new Float32Array(n);
   for (let i = 1; i < n; i++) {
@@ -460,10 +479,10 @@ const GRID_M = 250;
 const WALKER_EVERY_M = 32;
 const MAX_PEOPLE = 4000;
 const WALK_SPEED = 1.3; // m/s
-const PEOPLE_COLORS = ["#3d4450", "#6b6e75", "#efece4", "#8a6f5c", "#4f5f74", "#a9a39a", "#2b2d31", "#b38a7a"].map((c) => new Color(c));
+export const PEOPLE_COLORS = ["#3d4450", "#6b6e75", "#efece4", "#8a6f5c", "#4f5f74", "#a9a39a", "#2b2d31", "#b38a7a"].map((c) => new Color(c));
 
 /** A person, a little larger than life (like the cars): body, legs, head. */
-function createPersonGeometry(): BufferGeometry {
+export function createPersonGeometry(): BufferGeometry {
   const tint = (g: BufferGeometry, color: string | null) => {
     const n = g.getAttribute("position").count;
     const colors = new Float32Array(n * 3);

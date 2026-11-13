@@ -11,6 +11,7 @@ import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type F
 import { Bridge, loadCover, loadPlan, Parks, type CoverData, type PlanData } from "./Extras";
 import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
 import { Daylight, SunClock } from "./Daylight";
+import { Bikes, CruiseShip, Funiculars, Gulls, SantaJusta, Terraces, Viewpoints } from "./MoreLife";
 import Panel from "./Panel";
 import { Buses, Calcada, Crossings, loadStreet, People, StreetLamps, TrafficLights, VascoDaGama, type StreetData } from "./Street";
 
@@ -660,6 +661,12 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
     document.body.style.cursor = hovered >= 0 ? "pointer" : "";
   }, [hovered, selectedSpot, buildingMaterial]);
 
+  // Gulls circle over the river: around the ferry piers and along the sailing lanes.
+  const gullCentres = useMemo(
+    () => (plan ? [...plan.ferryRoutes, ...plan.sailingLanes].flatMap((r) => [r[0], r[Math.floor(r.length / 2)]]).map((p) => [p[0], p[1]]) : []),
+    [plan],
+  );
+
   const overview = useMemo(() => {
     if (!manifest) return [];
     return stops
@@ -712,6 +719,13 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {street && <Buses lines={street.bus} />}
       {street && roads && <People roads={roads.lines} crossings={street.crossings} />}
       {roads && <StreetLamps roads={roads.lines} />}
+      {street && <Funiculars lines={street.funiculars} />}
+      {street?.santaJusta && <SantaJusta at={street.santaJusta} />}
+      {street && <Bikes lines={street.cycle} />}
+      {street && <Viewpoints points={street.viewpoints} />}
+      {street && <Terraces points={street.terraces} />}
+      {manifest && <CruiseShip manifest={manifest} />}
+      {plan && <Gulls centres={gullCentres} />}
       {street && <VascoDaGama bridge={street.bridge} />}
       {plan && <Trams routes={plan.tramRoutes} />}
       {plan && <Tracks file={plan.tracks.file} unitsPerMetre={plan.tracks.unitsPerMetre} routes={plan.trainRoutes} />}
