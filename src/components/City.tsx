@@ -126,6 +126,8 @@ interface CameraApi {
 declare global {
   interface Window {
     __city?: Stats;
+    /** With ?shot only: drives the time of day and the selected place, for recording the videos. */
+    __shot?: { setTime: (minutes: number | null) => void; select: (slug: string | null) => void };
   }
 }
 
@@ -1035,6 +1037,16 @@ export default function City({
   const spots = useRef<LabelSpot[]>([]);
 
   const [selected, setSelected] = useState(() => projects.findIndex((p) => p.path === initialPath));
+  useEffect(() => {
+    if (!SHOT) return;
+    window.__shot = {
+      setTime: setTimeOverride,
+      select: (slug) => setSelected(slug ? projects.findIndex((p) => p.slug === slug) : -1),
+    };
+    return () => {
+      delete window.__shot;
+    };
+  }, [projects]);
   const current = selected >= 0 ? projects[selected] : null;
   const stopAt = stops.findIndex((s) => s.members.includes(selected));
   const stop = stopAt >= 0 ? stops[stopAt] : null;
