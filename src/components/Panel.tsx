@@ -60,6 +60,11 @@ export default function Panel({ stop, projects, active, onClose, tour, email, li
     if (shared) document.getElementById(`project-${active}`)?.scrollIntoView({ block: "nearest" });
   }, [active, shared]);
 
+  // The page's own copy of the text (for readers without JavaScript) gives way to this panel.
+  useEffect(() => {
+    document.getElementById("ssr-panel")?.remove();
+  }, []);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();

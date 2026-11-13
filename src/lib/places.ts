@@ -17,11 +17,6 @@ export function htmlOf(rendered: { html?: string } | undefined): string {
   return (rendered?.html ?? "").replace(/<!--[\s\S]*?-->\s*/g, "");
 }
 
-/** The current job, if any: the one still running, at Deloitte. */
-function currentJob(places: Entry[]): Entry | undefined {
-  return places.find((e) => e.data.category === "job" && e.data.period?.includes("Present") && e.data.title === "Deloitte");
-}
-
 /** Title of the home page (the browser tab, search results and link previews). */
 export async function getHomeTitle(): Promise<string> {
   return `Profile - ${SITE_NAME}`;
@@ -48,25 +43,63 @@ export async function getContact(): Promise<{ email?: string; linkedin?: string 
   };
 }
 
+export type Profile = CollectionEntry<"site">["data"];
+
+/** Role, headline, strengths, skills and languages, from src/content/site/about.md. */
+export async function getProfile(): Promise<Profile> {
+  const entry = await getEntry("site", "about");
+  if (!entry) throw new Error("src/content/site/about.md is missing");
+  return entry.data;
+}
+
+/** The organisation a job or school entry belongs to (entries of one employer share a group). */
+export function orgOf(entry: Entry): string {
+  return entry.data.group ?? entry.data.title;
+}
+
+/** Places of one category, newest first, grouped by organisation. */
+export function byOrganisation(places: Entry[], category: "job" | "education" | "personal"): { org: string; entries: Entry[] }[] {
+  const time = (e: Entry) => e.data.date?.getTime() ?? 0;
+  const list = places.filter((e) => e.data.category === category && e.data.kind === "work").sort((a, b) => time(b) - time(a));
+  const groups: { org: string; entries: Entry[] }[] = [];
+  for (const e of list) {
+    const org = orgOf(e);
+    const group = groups.find((g) => g.org === org);
+    if (group) group.entries.push(e);
+    else groups.push({ org, entries: [e] });
+  }
+  return groups;
+}
+
 /**
- * Structured data about Salvador (schema.org Person) for search engines and
- * link previews, built from the content files only.
+ * Structured data about Salvador (schema.org ProfilePage about a Person, as Google
+ * recommends for profile pages) for search engines and AI agents, from the content files only.
  */
 export async function getPerson(site: URL | undefined): Promise<Record<string, unknown>> {
-  const [about, places, contact] = await Promise.all([getAbout(), getPlaces(), getContact()]);
-  const current = currentJob(places);
+  const [profile, places, contact] = await Promise.all([getProfile(), getPlaces(), getContact()]);
+  const current = places.filter((e) => e.data.category === "job" && e.data.period?.includes("Present"));
   const schools = places.filter((e) => e.data.category === "education");
-  return {
-    "@context": "https://schema.org",
+  const skills = profile.skills.flatMap((g) => g.items);
+  const person = {
     "@type": "Person",
     name: SITE_NAME,
-    description: about.masthead,
+    jobTitle: profile.role,
+    description: profile.headline,
     ...(site ? { url: site.href, image: new URL(PORTRAIT, site).href } : {}),
-    ...(current ? { jobTitle: current.data.role?.split(" · ")[0], worksFor: { "@type": "Organization", name: current.data.title } } : {}),
+    worksFor: [...new Set(current.map(orgOf))].map((name) => ({ "@type": "Organization", name })),
+    hasOccupation: {
+      "@type": "Occupation",
+      name: profile.role,
+      skills: skills.join(", "),
+      occupationLocation: { "@type": "City", name: "Lisbon" },
+    },
     alumniOf: schools.map((e) => ({ "@type": "CollegeOrUniversity", name: e.data.title })),
+    knowsAbout: skills,
+    knowsLanguage: profile.languages.map((l) => ({ "@type": "Language", name: l.name })),
     address: { "@type": "PostalAddress", addressLocality: "Lisbon", addressCountry: "PT" },
-    ...(contact.linkedin ? { sameAs: [contact.linkedin] } : {}),
+    sameAs: [contact.linkedin, profile.github].filter(Boolean),
   };
+  return { "@context": "https://schema.org", "@type": "ProfilePage", mainEntity: person };
 }
 
 export async function getPlaces(): Promise<Entry[]> {

@@ -36,6 +36,11 @@
       "source": "/work/correntes-oficios",
       "destination": "/work/correntes-replacement-orders",
       "permanent": true
+    },
+    {
+      "source": "/list",
+      "destination": "/profile",
+      "permanent": true
     }
   ]
 }

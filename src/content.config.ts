@@ -53,7 +53,19 @@ const projects = defineCollection({
 // Text about Salvador himself: the top bar, the welcome card and the List read it from here.
 const site = defineCollection({
   loader: glob({ pattern: "**/*.md", base: "./src/content/site" }),
-  schema: z.object({ masthead: z.string() }),
+  schema: z.object({
+    masthead: z.string(),
+    /** The role Salvador is looking for, first in the profile and the structured data. */
+    role: z.string(),
+    /** One line: what he is and what he does. */
+    headline: z.string(),
+    /** Three strengths, each with its proof. */
+    strengths: z.array(z.object({ title: z.string(), proof: z.string() })),
+    /** Tools and skills, in groups. */
+    skills: z.array(z.object({ group: z.string(), items: z.array(z.string()) })),
+    languages: z.array(z.object({ name: z.string(), level: z.string() })),
+    github: z.string().optional(),
+  }),
 });
 
 export const collections = { projects, site };

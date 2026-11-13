@@ -1186,7 +1186,7 @@ export default function City({
         // No 3D: a still of the city. Everything stays reachable through the List.
         <div className="fallback">
           <img src="/city.jpg" alt="Lisbon seen from above" />
-          <a className="fallback-text" href="/list">
+          <a className="fallback-text" href="/profile">
             Everything on this site as text
           </a>
         </div>

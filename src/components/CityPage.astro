@@ -71,6 +71,7 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
       <p class="thesis">{about.masthead}</p>
       <nav aria-label="Site">
         {hasCv && <a href={CV_PATH} class="cv-open">CV</a>}
+        <a href="/profile">Profile</a>
         <button type="button" id="tour-start" hidden>Tour</button>
         {
           contact.email && (
@@ -82,6 +83,42 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
         {contact.linkedin && <a href={contact.linkedin} target="_blank" rel="noopener">LinkedIn</a>}
       </nav>
     </header>
+
+    {
+      /* A project's own address: its text is in the page itself, for readers that do not
+         run JavaScript (AI agents, some crawlers). The city's panel replaces it (see Panel.tsx). */
+      entry && (
+        <article class="panel" id="ssr-panel" aria-labelledby="ssr-title">
+          <div class="panel-bar">
+            <a class="panel-close" href="/">Close</a>
+          </div>
+          <p class="panel-place">
+            {entry.data.category && `${{ job: "Work", education: "Education", personal: "Personal project" }[entry.data.category]} · `}
+            {entry.data.place}
+          </p>
+          <h1 id="ssr-title">{entry.data.title}</h1>
+          {
+            (entry.data.role || entry.data.period) && (
+              <p class="panel-role">{[entry.data.role, entry.data.period].filter(Boolean).join(" · ")}</p>
+            )
+          }
+          {entry.data.stack.length > 0 && <p class="panel-stack">{entry.data.stack.join(" · ")}</p>}
+          <div class="panel-body" set:html={htmlOf(entry.rendered)} />
+          {
+            entry.data.links.length > 0 && (
+              <p class="panel-links">
+                {entry.data.links.map((link) => (
+                  <a href={link.url}>{link.label}</a>
+                ))}
+              </p>
+            )
+          }
+          <p class="panel-links">
+            <a href="/profile">Full profile of {SITE_NAME}</a>
+          </p>
+        </article>
+      )
+    }
 
     <div class="controls">
       <div class="controls-buttons" role="group" aria-label="Map">
@@ -239,7 +276,7 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
     <noscript>
       <div class="fallback">
         <img src="/city.jpg" alt="Lisbon seen from above" />
-        <a class="fallback-text" href="/list">Everything on this site as text</a>
+        <a class="fallback-text" href="/profile">Everything on this site as text</a>
       </div>
     </noscript>
 

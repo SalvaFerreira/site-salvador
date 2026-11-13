@@ -24,7 +24,7 @@ const imageUrl = new URL(`/og/${preview}.jpg`, base);
 
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<!-- Salvador's photo, round (made from eu.png). -->
+<!-- Salvador's photo (made from eu.png). -->
 <link rel="icon" href="/favicon.ico" sizes="48x48" />
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
@@ -32,6 +32,8 @@ const imageUrl = new URL(`/og/${preview}.jpg`, base);
 <title>{fullTitle}</title>
 <meta name="description" content={description} />
 <link rel="canonical" href={canonical} />
+<!-- The whole profile as text, for AI agents and tools that read text. -->
+<link rel="alternate" type="text/markdown" href="/profile.md" title="Profile of Salvador Ferreira (Markdown)" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content={SITE_NAME} />
 <meta property="og:title" content={fullTitle} />

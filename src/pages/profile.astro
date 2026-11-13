@@ -1,0 +1,203 @@
+---
+// The profile as a plain page, written to be scanned in seconds by a recruiter and
+// read by their tools and AI agents: who, what, strengths, skills, then the details.
+// Everything comes from the content files, like the city.
+import Head from "../components/Head.astro";
+import {
+  byOrganisation,
+  CV_PATH,
+  getAbout,
+  getContact,
+  getPerson,
+  getPlaces,
+  getProfile,
+  hasCv,
+  htmlOf,
+  orgOf,
+  pathOf,
+  PORTRAIT,
+  SITE_NAME,
+  type Entry,
+} from "../lib/places";
+import "../styles/global.css";
+
+const [places, about, profile, contact, person] = await Promise.all([
+  getPlaces(),
+  getAbout(),
+  getProfile(),
+  getContact(),
+  getPerson(Astro.site),
+]);
+const jobs = byOrganisation(places, "job");
+const schools = byOrganisation(places, "education");
+const projects = byOrganisation(places, "personal");
+const now = places.find((e) => e.data.kind === "now");
+
+/** An entry's own heading under its organisation: the part of the title after "Org: ". */
+const subtitle = (e: Entry) => {
+  const org = orgOf(e);
+  const own = e.data.title.startsWith(`${org}: `) ? e.data.title.slice(org.length + 2) : e.data.title;
+  return own.charAt(0).toUpperCase() + own.slice(1);
+};
+const external = (url: string) => (url.startsWith("http") ? { target: "_blank", rel: "noopener" } : {});
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <Head title="Profile" description={`${profile.headline} Lisbon, Portugal.`} jsonLd={person} />
+  </head>
+  <body class="profile-page">
+    <main>
+      <header>
+        <div class="profile-head">
+          <img class="portrait" src={PORTRAIT} alt={`Photo of ${SITE_NAME}`} width="72" height="72" />
+          <div>
+            <h1>{SITE_NAME}</h1>
+            <p class="profile-role">{profile.role} · Lisbon, Portugal</p>
+          </div>
+        </div>
+        <p class="profile-headline">{profile.headline}</p>
+        <p class="profile-links">
+          {hasCv && <a href={CV_PATH}>CV (PDF)</a>}
+          {contact.email && <a href={contact.email}>Email</a>}
+          {contact.linkedin && <a href={contact.linkedin} {...external(contact.linkedin)}>LinkedIn</a>}
+          {profile.github && <a href={profile.github} {...external(profile.github)}>GitHub</a>}
+          <a href="/">The map</a>
+        </p>
+      </header>
+
+      <section aria-labelledby="strengths">
+        <h2 id="strengths">Strengths</h2>
+        <ol class="profile-strengths">
+          {
+            profile.strengths.map((s) => (
+              <li>
+                <strong>{s.title}.</strong> {s.proof}
+              </li>
+            ))
+          }
+        </ol>
+      </section>
+
+      <section aria-labelledby="skills">
+        <h2 id="skills">Skills and tools</h2>
+        <dl class="profile-skills">
+          {
+            profile.skills.map((g) => (
+              <div>
+                <dt>{g.group}</dt>
+                <dd>
+                  <ul>
+                    {g.items.map((item) => (
+                      <li>{item}</li>
+                    ))}
+                  </ul>
+                </dd>
+              </div>
+            ))
+          }
+          <div>
+            <dt>Spoken languages</dt>
+            <dd>
+              <ul>
+                {
+                  profile.languages.map((l) => (
+                    <li>
+                      {l.name} ({l.level})
+                    </li>
+                  ))
+                }
+              </ul>
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="experience">
+        <h2 id="experience">Experience</h2>
+        {
+          jobs.map(({ org, entries }) => (
+            <article class="profile-entry" id={entries[0].id}>
+              <h3>
+                <a href={pathOf(entries[0])}>{org}</a>
+              </h3>
+              <p class="profile-meta">
+                {[entries[0].data.role, entries[0].data.period, entries[0].data.place].filter(Boolean).join(" · ")}
+              </p>
+              {entries.map((e) => (
+                <>
+                  {entries.length > 1 && <h4 id={e.id}>{subtitle(e)}</h4>}
+                  {e.data.stack.length > 0 && <p class="profile-stack">{e.data.stack.join(" · ")}</p>}
+                  <Fragment set:html={htmlOf(e.rendered)} />
+                </>
+              ))}
+            </article>
+          ))
+        }
+      </section>
+
+      <section aria-labelledby="education">
+        <h2 id="education">Education</h2>
+        {
+          schools.map(({ entries: [e] }) => (
+            <article class="profile-entry" id={e.id}>
+              <h3>
+                <a href={pathOf(e)}>{e.data.title}</a>
+              </h3>
+              <p class="profile-meta">{[e.data.role, e.data.period].filter(Boolean).join(" · ")}</p>
+              <Fragment set:html={htmlOf(e.rendered)} />
+            </article>
+          ))
+        }
+      </section>
+
+      <section aria-labelledby="projects">
+        <h2 id="projects">Projects</h2>
+        {
+          projects.map(({ entries: [e] }) => (
+            <article class="profile-entry" id={e.id}>
+              <h3>
+                <a href={pathOf(e)}>{e.data.title}</a>
+              </h3>
+              <p class="profile-meta">{[e.data.role, e.data.period].filter(Boolean).join(" · ")}</p>
+              {e.data.stack.length > 0 && <p class="profile-stack">{e.data.stack.join(" · ")}</p>}
+              <Fragment set:html={htmlOf(e.rendered)} />
+              {e.data.links.length > 0 && (
+                <p class="profile-links">
+                  {e.data.links.map((link) => (
+                    <a href={link.url} {...external(link.url)}>
+                      {link.label}
+                    </a>
+                  ))}
+                </p>
+              )}
+            </article>
+          ))
+        }
+      </section>
+
+      <section aria-labelledby="summary">
+        <h2 id="summary">Summary</h2>
+        <div set:html={about.html} />
+      </section>
+
+      {
+        now && (
+          <section aria-labelledby="now">
+            <h2 id="now">{now.data.title}</h2>
+            <Fragment set:html={htmlOf(now.rendered)} />
+          </section>
+        )
+      }
+
+      <footer>
+        <p>
+          Also as <a href="/profile.md">Markdown</a>. Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>
+          · Green spaces, trees and railways: Câmara Municipal de Lisboa · Elevation: Copernicus DEM GLO-30, © DLR e.V. 2010-2014 and ©
+          Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>
