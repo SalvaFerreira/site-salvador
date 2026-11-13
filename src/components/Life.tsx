@@ -752,20 +752,66 @@ const CLIMB = Math.tan((8 * Math.PI) / 180);
 const TAKEOFF_GONE_M = 7500;
 
 /** A small airliner. Its nose points along +x. */
-function createPlaneGeometry(): BufferGeometry {
+export function createPlaneGeometry(): BufferGeometry {
   return mergeGeometries([
     box(38, 4, 4, 0, 0, 0, "#f4f4f1"),
     box(6, 0.6, 36, -1, -0.6, 0, "#e3e5e8"),
     box(3.4, 0.5, 13, -17, 0.6, 0, "#e3e5e8"),
     box(5, 6, 0.6, -16.5, 3.6, 0, "#b7877c"),
+    // Engines under the wings and the cockpit windows, so it reads on a pale apron.
+    box(5, 2, 2, 1.5, -1.3, 7, "#7d8288"),
+    box(5, 2, 2, 1.5, -1.3, -7, "#7d8288"),
+    box(1.6, 0.9, 3.4, 17.6, 1.1, 0, "#2f343b"),
   ]);
 }
 
 const PARKED_PLANES = 9;
 
-/** The airport: runways and taxiways drawn on the ground, and a few planes parked on the apron. */
-export function Airport({ cover, shapes }: { cover: CoverData; shapes: Map<number, BufferGeometry> }) {
+/** Lights along the runway edges, this far apart; green at the ends. */
+const RUNWAY_LIGHT_EVERY_M = 60;
+
+/**
+ * The airport: runways and taxiways drawn on the ground, their lights at night,
+ * and (unless the planes stand at the mapped stands, see Grounds.tsx) a few planes
+ * parked on the apron.
+ */
+export function Airport({ cover, shapes, parkedAtStands = false }: { cover: CoverData; shapes: Map<number, BufferGeometry>; parkedAtStands?: boolean }) {
   const material = useMemo(createRunwayMaterial, []);
+  const edgeLights = useMemo(() => createLightMaterial("#fff1cf"), []);
+  const endLights = useMemo(() => createLightMaterial("#5fe08a"), []);
+  const lights = useMemo(() => {
+    const edges: BufferGeometry[] = [];
+    const ends: BufferGeometry[] = [];
+    for (const r of cover.runways) {
+      if (r.width < 30) continue;
+      const half = r.width / 2 + 1.5;
+      for (let i = 1; i < r.points.length; i++) {
+        const [ax, ay] = r.points[i - 1];
+        const [bx, by] = r.points[i];
+        const len = Math.hypot(bx - ax, by - ay);
+        if (len < 1) continue;
+        const nx = -(by - ay) / len;
+        const ny = (bx - ax) / len;
+        for (let d = 0; d <= len; d += RUNWAY_LIGHT_EVERY_M) {
+          const x = ax + ((bx - ax) * d) / len;
+          const y = ay + ((by - ay) * d) / len;
+          for (const side of [-1, 1]) edges.push(new BoxGeometry(3.2, 0.8, 3.2).translate(x + nx * half * side, 0.8, -(y + ny * half * side)));
+        }
+      }
+      // A row of green lights across each end.
+      for (const [x, y, px, py] of [
+        [...r.points[0], ...r.points[1]],
+        [...r.points[r.points.length - 1], ...r.points[r.points.length - 2]],
+      ]) {
+        const len = Math.hypot(px - x, py - y) || 1;
+        const nx = -(py - y) / len;
+        const ny = (px - x) / len;
+        for (let k = -half; k <= half; k += 6) ends.push(new BoxGeometry(3.2, 0.8, 3.2).translate(x + nx * k, 0.8, -(y + ny * k)));
+      }
+    }
+    const merge = (list: BufferGeometry[]) => (list.length ? mergeGeometries(list.map((g) => g.toNonIndexed())) : null);
+    return { edges: merge(edges), ends: merge(ends) };
+  }, [cover]);
   const planeGeometry = useMemo(createPlaneGeometry, []);
   const tarmac = useMemo(() => {
     const lines: Polyline[] = [
@@ -776,7 +822,7 @@ export function Airport({ cover, shapes }: { cover: CoverData; shapes: Map<numbe
   }, [cover]);
   const parked = useMemo(() => {
     const apron = shapes.get(COVER.apron);
-    if (!apron) return [];
+    if (!apron || parkedAtStands) return [];
     const random = randomFrom(4);
     const candidates = scatterOver(apron, 80, random);
     const out: { x: number; y: number; heading: number }[] = [];
@@ -786,11 +832,13 @@ export function Airport({ cover, shapes }: { cover: CoverData; shapes: Map<numbe
       if (out.every((p) => Math.hypot(p.x - x, p.y - y) > 95)) out.push({ x, y, heading: random() * Math.PI * 2 });
     }
     return out;
-  }, [shapes]);
+  }, [shapes, parkedAtStands]);
 
   return (
     <>
       <mesh geometry={tarmac} material={material} renderOrder={1} raycast={noRaycast} frustumCulled={false} />
+      {lights.edges && <mesh geometry={lights.edges} material={edgeLights} renderOrder={4} raycast={noRaycast} frustumCulled={false} />}
+      {lights.ends && <mesh geometry={lights.ends} material={endLights} renderOrder={4} raycast={noRaycast} frustumCulled={false} />}
       {parked.map((p, i) => (
         <mesh key={i} geometry={planeGeometry} position={[p.x, 3, -p.y]} rotation-y={p.heading} scale={PLANE_SCALE} raycast={noRaycast}>
           <meshLambertMaterial vertexColors />

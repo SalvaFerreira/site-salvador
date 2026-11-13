@@ -382,3 +382,32 @@ export function createShadowMaterial(): MeshBasicMaterial {
   shadowMaterials.add(material);
   return material;
 }
+
+/**
+ * Footpaths in parks and on campuses: pale gravel with a darker edge; steps
+ * (class 2) striped across. vRoad: x along the path, y across (-1..1), z class.
+ */
+export function createPathMaterial(): ShaderMaterial {
+  return withNight(
+    new ShaderMaterial({
+      vertexShader: ribbonVertex,
+      fragmentShader: /* glsl */ `
+varying vec3 vRoad;
+
+void main() {
+  float across = abs(vRoad.y);
+  vec3 gravel = vec3(0.86, 0.82, 0.73);
+  vec3 color = gravel * (1.0 - 0.1 * smoothstep(0.7, 0.95, across));
+  float steps = step(1.5, vRoad.z) * step(vRoad.z, 2.5);
+  float fine = 1.0 - smoothstep(0.3, 0.8, fwidth(vRoad.x));
+  color *= 1.0 - steps * fine * 0.18 * step(0.5, fract(vRoad.x / 0.9));
+  gl_FragColor = vec4(color, 1.0);
+  #include <colorspace_fragment>
+}
+`,
+      uniforms: { ...shared },
+      depthWrite: false,
+    }),
+    "dark",
+  );
+}

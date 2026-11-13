@@ -16,6 +16,7 @@ import { Festivities, type Holiday } from "./Festivities";
 import { describe, useWeather, WeatherEffects, type Weather } from "./Weather";
 import { Bikes, CruiseShip, Funiculars, Gulls, Monuments, SantaJusta, Terraces, Viewpoints } from "./MoreLife";
 import Panel from "./Panel";
+import { Grounds, loadGrounds, type GroundsData } from "./Grounds";
 import { Buses, Calcada, Crossings, loadStreet, People, StreetLamps, TrafficLights, VascoDaGama, type StreetData } from "./Street";
 
 export type Category = "job" | "education" | "personal";
@@ -178,6 +179,7 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
   const [plan, setPlan] = useState<PlanData | null>(null);
   const [cover, setCover] = useState<{ data: CoverData; shapes: Map<number, BufferGeometry> } | null>(null);
   const [street, setStreet] = useState<StreetData | null>(null);
+  const [grounds, setGrounds] = useState<GroundsData | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,6 +197,9 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
       loadStreet()
         .then((d) => !cancelled && setStreet(d))
         .catch((error) => console.error("Street detail failed to load", error));
+      loadGrounds()
+        .then((g) => !cancelled && setGrounds(g))
+        .catch((error) => console.error("Parks and airport detail failed to load", error));
       loadCover()
         .then(async (data) => ({ data, shapes: await loadShapesByClass(data.file, data.unitsPerMetre) }))
         .then((c) => !cancelled && setCover(c));
@@ -255,7 +260,7 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
     };
   }, [stops, projects, onStats]);
 
-  return { manifest, land, roads, chunks, places, plan, cover, street };
+  return { manifest, land, roads, chunks, places, plan, cover, street, grounds };
 }
 
 const MAX_DPR = 1.5;
@@ -688,7 +693,7 @@ interface SceneProps {
 }
 
 function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots, timeOverride, weather, holiday }: SceneProps) {
-  const { manifest, land, roads, chunks, places, plan, cover, street } = useCity(stops, projects, onStats);
+  const { manifest, land, roads, chunks, places, plan, cover, street, grounds } = useCity(stops, projects, onStats);
   const buildingMaterial = useMemo(() => {
     const material = createBuildingMaterial();
     stops.forEach((s) => {
@@ -773,7 +778,8 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       )}
 
       {plan && <Parks plan={plan} cover={cover?.shapes ?? null} />}
-      {cover && <Airport cover={cover.data} shapes={cover.shapes} />}
+      {cover && <Airport cover={cover.data} shapes={cover.shapes} parkedAtStands={(grounds?.stands.length ?? 0) > 0} />}
+      {grounds && <Grounds data={grounds} />}
       {/* Streets do not write depth, so they are drawn after everything solid (see createStreetMaterial). */}
       {roads && (
         <mesh geometry={roads.geometry} material={streetMaterial} renderOrder={1} raycast={noRaycast} frustumCulled={false} />
