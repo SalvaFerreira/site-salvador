@@ -1,5 +1,7 @@
 ---
 title: "Correntes de Memória: replacement orders and payments agent"
+# One line at the top of the panel and the Profile page.
+summary: "An LLM agent that reads caregiver-replacement orders (PDF), updates the care-management system and reconciles the payments."
 label: "Correntes de Memória"
 group: "Correntes de Memória"
 category: "job"

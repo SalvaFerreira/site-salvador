@@ -1,5 +1,7 @@
 ---
 title: "Iscte Junior Consulting"
+# One line at the top of the panel and the Profile page.
+summary: "50+ databases, dashboards and reports that turned raw data into recommendations for clients and internal teams."
 label: "Iscte Junior Consulting"
 category: "job"
 place: "Cidade Universitária"
@@ -14,7 +16,7 @@ order: 4
 date: "2023-10"
 # Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
 images: []
-stack: []
+stack: ["Power BI", "Excel"]
 links:
   - label: "isctejuniorconsulting.com"
     url: "https://isctejuniorconsulting.com/"

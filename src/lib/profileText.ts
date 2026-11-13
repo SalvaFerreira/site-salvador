@@ -43,6 +43,7 @@ export async function buildProfileMarkdown(site: URL): Promise<string> {
       if (meta) out.push(`*${meta}* · [details](${abs(pathOf(entries[0]))})`, "");
       for (const e of entries) {
         if (entries.length > 1) out.push(`#### ${capital(e.data.title.replace(`${orgOf(e)}: `, ""))}`, "");
+        if (e.data.summary) out.push(`**${e.data.summary}**`, "");
         if (e.data.stack.length) out.push(`Stack: ${e.data.stack.join(", ")}`, "");
         const body = bodyOf(e);
         if (body) out.push(body, "");

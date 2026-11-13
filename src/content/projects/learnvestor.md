@@ -1,5 +1,7 @@
 ---
 title: "LearnVestor"
+# One line at the top of the panel and the Profile page.
+summary: "A free app that teaches investing through a virtual portfolio and lessons."
 label: "LearnVestor"
 category: "personal"
 place: "Marvila"

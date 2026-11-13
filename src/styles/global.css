@@ -900,9 +900,33 @@ button:focus-visible {
   outline: none;
 }
 
+/* One line first, then the tools, then the details */
+.panel-summary,
+.profile-summary {
+  margin: 10px 0 12px;
+  color: var(--paper);
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.profile-summary {
+  font-size: 16px;
+}
+
 .panel-stack {
-  margin: 0 0 24px;
-  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0 0 22px;
+  padding: 0;
+  list-style: none;
+}
+
+.panel-stack li {
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: #2d3036;
+  color: var(--paper);
   font-size: 12px;
 }
 

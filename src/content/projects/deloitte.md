@@ -1,5 +1,7 @@
 ---
 title: "Deloitte"
+# One line at the top of the panel and the Profile page.
+summary: "Building an AI agent that migrates legacy data warehouses to dbt, in a team where multi-agent workflows made delivery about 10x faster."
 label: "Deloitte"
 category: "job"
 place: "Amoreiras"
@@ -10,7 +12,7 @@ coordinates: [-9.1571308, 38.724672]
 order: 3
 # Start: orders the journey line and the Tour.
 date: "2026-09"
-stack: []
+stack: ["Python", "SQL", "dbt", "T-SQL", "SSIS", "LLM agents"]
 links:
   - label: "deloitte.com"
     url: "https://www.deloitte.com/pt/pt.html"

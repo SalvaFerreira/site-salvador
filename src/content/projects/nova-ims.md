@@ -1,5 +1,7 @@
 ---
 title: "NOVA IMS – Information Management School"
+# One line at the top of the panel and the Profile page.
+summary: "Master's in Risk Management, including machine learning and AI applied to financial risk."
 label: "NOVA IMS"
 category: "education"
 place: "Campolide"

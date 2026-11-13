@@ -1,6 +1,8 @@
 ---
 # Provisional title: replace with the final one.
 title: "Correntes de Memória: automations and financial operations"
+# One line at the top of the panel and the Profile page.
+summary: "10+ AI agents and automations that cut the team's manual workload about 6x, alongside the day-to-day finance operations."
 label: "Correntes de Memória"
 group: "Correntes de Memória"
 category: "job"

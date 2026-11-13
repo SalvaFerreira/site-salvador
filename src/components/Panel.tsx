@@ -117,7 +117,14 @@ export default function Panel({ stop, projects, active, onClose, tour, email, li
               {project.period && <span className="panel-period">{project.period}</span>}
             </p>
           )}
-          {project.stack.length > 0 && <p className="panel-stack">{project.stack.join(" · ")}</p>}
+          {project.summary && <p className="panel-summary">{project.summary}</p>}
+          {project.stack.length > 0 && (
+            <ul className="panel-stack" aria-label="Tools">
+              {project.stack.map((tool) => (
+                <li key={tool}>{tool}</li>
+              ))}
+            </ul>
+          )}
           {/* Rendered from the project's Markdown file at build time. */}
           <div className="panel-body" dangerouslySetInnerHTML={{ __html: project.html }} />
           {project.images.length > 0 && (

@@ -1,5 +1,7 @@
 ---
 title: "ISCTE – University Institute of Lisbon"
+# One line at the top of the panel and the Profile page.
+summary: "Bachelor's in Data Science: programming, statistics, databases, machine learning and deep learning."
 label: "Iscte"
 category: "education"
 place: "Cidade Universitária"

@@ -45,6 +45,7 @@ export interface Project {
   /** When it started (ISO), if known. */
   date?: string;
   order: number;
+  summary?: string;
   images: { src: string; alt: string; poster?: string }[];
   stack: string[];
   links: { label: string; url: string }[];

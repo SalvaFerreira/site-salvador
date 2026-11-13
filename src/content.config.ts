@@ -7,6 +7,8 @@ const projects = defineCollection({
   loader: glob({ pattern: "**/*.md", base: "./src/content/projects" }),
   schema: z.object({
     title: z.string(),
+    /** One line: what it is and what came of it. First in the panel and the Profile page. */
+    summary: z.string().optional(),
     /** Short name shown on the map label. Defaults to the title. */
     label: z.string().optional(),
     /** Places with the same group share one label and one panel. */

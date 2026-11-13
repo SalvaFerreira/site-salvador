@@ -128,6 +128,7 @@ const external = (url: string) => (url.startsWith("http") ? { target: "_blank", 
               {entries.map((e) => (
                 <>
                   {entries.length > 1 && <h4 id={e.id}>{subtitle(e)}</h4>}
+                  {e.data.summary && <p class="profile-summary">{e.data.summary}</p>}
                   {e.data.stack.length > 0 && <p class="profile-stack">{e.data.stack.join(" · ")}</p>}
                   <Fragment set:html={htmlOf(e.rendered)} />
                 </>
@@ -146,6 +147,7 @@ const external = (url: string) => (url.startsWith("http") ? { target: "_blank", 
                 <a href={pathOf(e)}>{e.data.title}</a>
               </h3>
               <p class="profile-meta">{[e.data.role, e.data.period].filter(Boolean).join(" · ")}</p>
+              {e.data.summary && <p class="profile-summary">{e.data.summary}</p>}
               <Fragment set:html={htmlOf(e.rendered)} />
             </article>
           ))
@@ -161,6 +163,7 @@ const external = (url: string) => (url.startsWith("http") ? { target: "_blank", 
                 <a href={pathOf(e)}>{e.data.title}</a>
               </h3>
               <p class="profile-meta">{[e.data.role, e.data.period].filter(Boolean).join(" · ")}</p>
+              {e.data.summary && <p class="profile-summary">{e.data.summary}</p>}
               {e.data.stack.length > 0 && <p class="profile-stack">{e.data.stack.join(" · ")}</p>}
               <Fragment set:html={htmlOf(e.rendered)} />
               {e.data.links.length > 0 && (

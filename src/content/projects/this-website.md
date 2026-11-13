@@ -1,5 +1,7 @@
 ---
 title: "This website"
+# One line at the top of the panel and the Profile page.
+summary: "This map of Lisbon: 79,000 buildings from open data drawn in the browser, with missing heights predicted by a model."
 label: "This website"
 category: "personal"
 place: "Arco da Rua Augusta"

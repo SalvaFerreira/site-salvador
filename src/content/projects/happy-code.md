@@ -1,5 +1,7 @@
 ---
 title: "Happy Code Portugal"
+# One line at the top of the panel and the Profile page.
+summary: "Taught Python, SQL and Excel to learners aged 3 to 17."
 label: "Happy Code"
 category: "job"
 place: "Parque das Nações"
@@ -12,7 +14,7 @@ order: 5
 date: "2025-01"
 # Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
 images: []
-stack: []
+stack: ["Python", "SQL", "Excel"]
 # links: add the website here, e.g. [{ label: "Website", url: "https://..." }]
 ---
 
