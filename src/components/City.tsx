@@ -17,6 +17,7 @@ import { describe, useWeather, WeatherEffects, type Weather } from "./Weather";
 import { Bikes, CruiseShip, Funiculars, Gulls, Monuments, SantaJusta, Terraces, Viewpoints } from "./MoreLife";
 import Panel from "./Panel";
 import { Grounds, loadGrounds, type GroundsData } from "./Grounds";
+import { Relief } from "./Relief";
 import { Buses, Calcada, Crossings, loadStreet, People, StreetLamps, TrafficLights, VascoDaGama, type StreetData } from "./Street";
 
 export type Category = "job" | "education" | "personal";
@@ -798,6 +799,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {plan && <Parks plan={plan} cover={cover?.shapes ?? null} />}
       {cover && <Airport cover={cover.data} shapes={cover.shapes} parkedAtStands={(grounds?.stands.length ?? 0) > 0} />}
       {grounds && <Grounds data={grounds} />}
+      {land && <Relief />}
       {/* Streets do not write depth, so they are drawn after everything solid (see createStreetMaterial). */}
       {roads && (
         <mesh geometry={roads.geometry} material={streetMaterial} renderOrder={1} raycast={noRaycast} frustumCulled={false} />
