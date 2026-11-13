@@ -40,7 +40,18 @@ interface Footprints {
   coords: Float32Array;
   heights: Uint8Array;
   ringCounts: Uint8Array;
+  /** Height above the ground where each building (or part) starts: 0 for most, more over an arch. */
+  minHeights: Uint8Array | null;
+  /** Roof shape per building (ROOF_* below), from OpenStreetMap where it is mapped. */
+  roofs: Uint8Array | null;
 }
+
+// Roof shapes, as written by scripts/02_process.py.
+const ROOF_AUTO = 0;
+const ROOF_FLAT = 1;
+const ROOF_PITCHED = 2;
+const ROOF_PYRAMID = 3;
+const ROOF_DOME = 4;
 
 const DATA = "/data/";
 
@@ -77,6 +88,11 @@ async function loadFootprints(file: string, unitsPerMetre: number): Promise<Foot
   const heights = new Uint8Array(buffer, offset, nBuildings);
   offset += nBuildings;
   const ringCounts = new Uint8Array(buffer, offset, nBuildings);
+  offset += nBuildings;
+  // Building files carry two more bytes per building; ground shapes do not.
+  const extra = buffer.byteLength >= offset + nBuildings * 2;
+  const minHeights = extra ? new Uint8Array(buffer, offset, nBuildings) : null;
+  const roofs = extra ? new Uint8Array(buffer, offset + nBuildings, nBuildings) : null;
 
   // Undo the delta encoding: the first vertex of each ring is absolute.
   const coords = new Float32Array(nVerts * 2);
@@ -91,7 +107,7 @@ async function loadFootprints(file: string, unitsPerMetre: number): Promise<Foot
       coords[v * 2 + 1] = y / unitsPerMetre;
     }
   }
-  return { nBuildings, vertCounts, coords, heights, ringCounts };
+  return { nBuildings, vertCounts, coords, heights, ringCounts, minHeights, roofs };
 }
 
 /**
@@ -270,12 +286,12 @@ export async function loadChunk(
 
   // Per footprint vertex: 4 for the wall, 4 for the roof slope above it, 1 for the roof top;
   // plus up to 20 for a chimney on each building.
-  const maxVerts = nVerts * 9 + f.nBuildings * 20;
+  const maxVerts = nVerts * 21 + f.nBuildings * 20;
   const position = new Float32Array(maxVerts * 3);
   const normal = new Int8Array(maxVerts * 3);
   const wall = new Float32Array(maxVerts * 4);
   const seed = new Float32Array(maxVerts);
-  const index = new Uint32Array(nVerts * 12 + (nVerts + nRings * 2) * 3 + f.nBuildings * 30);
+  const index = new Uint32Array(nVerts * 30 + (nVerts + nRings * 2) * 3 + f.nBuildings * 30);
 
   // The shadow of a block on flat ground is its footprint slid along the
   // ground, plus the strip each wall sweeps on the way.
@@ -291,6 +307,8 @@ export async function loadChunk(
 
   for (let b = 0; b < f.nBuildings; b++) {
     const h = f.heights[b];
+    const minH = f.minHeights?.[b] ?? 0;
+    const roofKind = f.roofs?.[b] ?? ROOF_AUTO;
     const tag = featured.get(b);
     const s = seedOf(b * 131 + salt) * 0.999 + (tag ? 1 + tag.index + (tag.dark ? 100 : 0) : 0);
     const roofStart = vert;
@@ -321,12 +339,12 @@ export async function loadChunk(
           const top = k >= 2;
           const q = p + k;
           position[q * 3] = atEnd ? cx : ax;
-          position[q * 3 + 1] = top ? h : 0;
+          position[q * 3 + 1] = top ? h : minH;
           position[q * 3 + 2] = -(atEnd ? cy : ay);
           normal[q * 3] = nx;
           normal[q * 3 + 2] = nz;
           wall[q * 4] = atEnd ? len : 0;
-          wall[q * 4 + 1] = top ? h : 0;
+          wall[q * 4 + 1] = top ? h : minH;
           wall[q * 4 + 2] = len;
           wall[q * 4 + 3] = h;
           seed[q] = s;
@@ -364,7 +382,8 @@ export async function loadChunk(
     // modern buildings, and shapes that cannot be pitched, keep a flat roof.
     const flat = f.coords.subarray(roofStart * 2, (roofStart + buildingVerts) * 2);
     const pick = seedOf(b * 977 + salt);
-    const modern = h >= 34 || pick < 0.14;
+    const peaked = roofKind === ROOF_PYRAMID || roofKind === ROOF_DOME;
+    const modern = roofKind === ROOF_FLAT || (roofKind === ROOF_AUTO && (h >= 34 || pick < 0.14));
     let footprintArea = 0;
     for (let i = 0; i < buildingVerts; i++) {
       const j = (i + 1) % buildingVerts;
@@ -373,11 +392,84 @@ export async function loadChunk(
     footprintArea = Math.abs(footprintArea) / 2;
     const inset = Math.min(3, Math.max(1.2, 0.2 * Math.sqrt(footprintArea)));
     const top =
-      modern || holes.length || h < 4 || footprintArea < 30
+      modern || peaked || holes.length || h < 4 || footprintArea < 30
         ? null
         : (insetRing(f.coords, roofStart, buildingVerts, inset) ?? insetRing(f.coords, roofStart, buildingVerts, inset / 2));
     const rise = top ? inset * 0.6 : 0;
-    const flatFlag = modern ? 1 : 0;
+    // Pyramids and domes are stone or slate, not tiles.
+    const flatFlag = modern || peaked ? 1 : 0;
+
+    if (peaked) {
+      // Rings of the roof towards its middle, each higher: one for a pyramid or spire,
+      // three for a dome. Faces between them, like the slopes of a pitched roof.
+      let cx = 0;
+      let cy = 0;
+      for (let i = 0; i < buildingVerts; i++) {
+        cx += flat[i * 2];
+        cy += flat[i * 2 + 1];
+      }
+      cx /= buildingVerts;
+      cy /= buildingVerts;
+      const radius = Math.sqrt(footprintArea / Math.PI);
+      const dome = roofKind === ROOF_DOME;
+      const peak = dome ? radius : Math.min(24, radius * 1.4);
+      const tiers = dome
+        ? [
+            [0.8, 0.45],
+            [0.45, 0.85],
+            [0, 1],
+          ]
+        : [[0, 1]];
+      let prevScale = 1;
+      let prevY = h;
+      for (const [scale, fy] of tiers) {
+        const y = h + peak * fy;
+        for (let i = 0; i < buildingVerts; i++) {
+          const j = (i + 1) % buildingVerts;
+          const at = (k: number, sc: number) => [cx + (flat[k * 2] - cx) * sc, cy + (flat[k * 2 + 1] - cy) * sc];
+          const [ax, ay] = at(i, prevScale);
+          const [bx, by] = at(j, prevScale);
+          const [tx, ty] = at(j, scale);
+          const [ux, uy] = at(i, scale);
+          const corners = [ax, prevY, ay, bx, prevY, by, tx, y, ty, ux, y, uy];
+          // Face normal in the scene (x east, y up, z south).
+          const e1 = [bx - ax, 0, -(by - ay)];
+          const e2 = [ux - ax, y - prevY, -(uy - ay)];
+          let nx = e1[1] * e2[2] - e1[2] * e2[1];
+          let ny = e1[2] * e2[0] - e1[0] * e2[2];
+          let nz = e1[0] * e2[1] - e1[1] * e2[0];
+          if (ny < 0) {
+            nx = -nx;
+            ny = -ny;
+            nz = -nz;
+          }
+          const nl = Math.hypot(nx, ny, nz) || 1;
+          for (let k = 0; k < 4; k++) {
+            const q = p + k;
+            position[q * 3] = corners[k * 3];
+            position[q * 3 + 1] = corners[k * 3 + 1];
+            position[q * 3 + 2] = -corners[k * 3 + 2];
+            normal[q * 3] = Math.round((nx / nl) * 127);
+            normal[q * 3 + 1] = Math.round((ny / nl) * 127);
+            normal[q * 3 + 2] = Math.round((nz / nl) * 127);
+            wall[q * 4] = flatFlag;
+            wall[q * 4 + 1] = h;
+            wall[q * 4 + 2] = -1;
+            wall[q * 4 + 3] = h;
+            seed[q] = s;
+          }
+          index[ix++] = p;
+          index[ix++] = p + 1;
+          index[ix++] = p + 2;
+          index[ix++] = p;
+          index[ix++] = p + 2;
+          index[ix++] = p + 3;
+          p += 4;
+        }
+        prevScale = scale;
+        prevY = y;
+      }
+    }
 
     if (top) {
       // One sloping face above each wall.
@@ -437,9 +529,11 @@ export async function loadChunk(
       const vx = flat[i2 * 2] - flat[i0 * 2];
       const vy = flat[i2 * 2 + 1] - flat[i0 * 2 + 1];
       if (ux * vy - uy * vx < 0) [i1, i2] = [i2, i1];
-      index[ix++] = p + i0;
-      index[ix++] = p + i1;
-      index[ix++] = p + i2;
+      if (!peaked) {
+        index[ix++] = p + i0;
+        index[ix++] = p + i1;
+        index[ix++] = p + i2;
+      }
       shadowIndex[six++] = sp + i0;
       shadowIndex[six++] = sp + i1;
       shadowIndex[six++] = sp + i2;

@@ -75,6 +75,13 @@ def main():
         f'relation["building"]["type"="multipolygon"]({FULL});\nout body geom qt;',
     )
 
+    # Parts of buildings in 3D (towers, domes, the upper floors over an arch), all at once.
+    fetch(
+        "building_parts",
+        "(" + 'way["building:part"](' + bbox(SOUTH, WEST, AREA_NORTH, AREA_EAST) + ");"
+        + 'relation["building:part"](' + bbox(SOUTH, WEST, AREA_NORTH, AREA_EAST) + ");" + ");" + chr(10) + "out body geom qt;",
+    )
+
     print("Coastline and river")
     fetch("coastline", f'way["natural"="coastline"]({FULL});\nout geom;')
     fetch(

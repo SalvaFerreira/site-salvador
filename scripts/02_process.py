@@ -42,6 +42,7 @@ import unicodedata
 import warnings
 
 import geopandas as gpd
+import pandas as pd
 import numpy as np
 from pyproj import Transformer
 from scipy.spatial import cKDTree
@@ -134,11 +135,50 @@ def slugify(name):
 BRIDGE_TOWERS = []
 
 
+# How a roof is drawn (the "roof" byte in the chunk files; see loadChunk in the site).
+ROOF_AUTO, ROOF_FLAT, ROOF_PITCHED, ROOF_PYRAMID, ROOF_DOME = range(5)
+ROOF_SHAPES = {
+    "flat": ROOF_FLAT,
+    **{k: ROOF_PITCHED for k in ("gabled", "hipped", "half-hipped", "side_hipped", "mansard", "gambrel", "saltbox", "skillion", "butterfly", "round")},
+    **{k: ROOF_PYRAMID for k in ("pyramidal", "cone", "tented")},
+    **{k: ROOF_DOME for k in ("dome", "onion")},
+}
+
+
+def use_parts(b):
+    """Where a building is mapped in parts, draw the parts instead of its outline.
+
+    An outline goes when parts cover at least half of it. A part with no height
+    of its own takes the height of the outline it stands on.
+    """
+    parts = b[b["kind"] == "part"]
+    outlines = b[b["kind"] != "part"]
+    if parts.empty:
+        return b, 0
+    hits = gpd.sjoin(outlines[["geometry"]], parts[["geometry"]], predicate="intersects")
+    covered = {}
+    for oi, pi in zip(hits.index, hits["index_right"]):
+        area = outlines.geometry[oi].intersection(parts.geometry[pi]).area
+        covered[oi] = covered.get(oi, 0) + area
+    drop = [oi for oi, area in covered.items() if area >= 0.5 * outlines.geometry[oi].area]
+    # Heights for parts that have none, from the outline under them.
+    for oi, pi in zip(hits.index, hits["index_right"]):
+        if pd.isna(b.at[pi, "height_tag"]) and pd.isna(b.at[pi, "levels_tag"]):
+            h = b.at[oi, "height_tag"]
+            if pd.isna(h) and not pd.isna(b.at[oi, "levels_tag"]):
+                h = b.at[oi, "levels_tag"] * LEVEL_HEIGHT_M
+            if not pd.isna(h):
+                b.at[pi, "height_tag"] = h
+    return b.drop(index=drop).reset_index(drop=True), len(drop)
+
+
 def read_buildings():
     seen, rows = set(), []
     names = [f"buildings_{i}_{j}" for i in range(TILES) for j in range(TILES)] + ["building_relations"]
     for strip, *_ in EXTRA_STRIPS:
         names += [f"buildings_extra_{strip}", f"building_relations_extra_{strip}"]
+    if (RAW / "building_parts.json").exists():
+        names.append("building_parts")
     for name in names:
         for el in load(name):
             key = (el["type"], el["id"])
@@ -161,12 +201,18 @@ def read_buildings():
                         "height": round(number(tags.get("height")) or 70.0, 1),
                     })
                 continue
+            part = "building:part" in tags and "building" not in tags
+            min_tag = number(tags.get("min_height"))
+            if min_tag is None and number(tags.get("building:min_level")) is not None:
+                min_tag = number(tags.get("building:min_level")) * LEVEL_HEIGHT_M
             for poly in polygons_of(element_polygon(el)):
                 rows.append({
                     "geometry": poly,
-                    "kind": tags.get("building", "yes"),
+                    "kind": "part" if part else tags.get("building", "yes"),
                     "height_tag": number(tags.get("height")),
                     "levels_tag": number(tags.get("building:levels")),
+                    "min_tag": min_tag,
+                    "roof": ROOF_SHAPES.get(tags.get("roof:shape", ""), ROOF_AUTO),
                 })
     return gpd.GeoDataFrame(rows, geometry="geometry")
 
@@ -375,7 +421,9 @@ def read_bridge(area):
 
 # ---------------------------------------------------------------- binary writer
 
-def write_bin(path, polygons, heights, units, origin):
+def write_bin(path, polygons, heights, units, origin, extra=None):
+    """`extra`, for buildings: (min heights, roof shapes), one byte each per building, written
+    after the ring counts (readers that do not know them stop before)."""
     ring_counts, vert_counts, coords = [], [], []
     limit = 32767
     for poly in polygons:
@@ -406,6 +454,7 @@ def write_bin(path, polygons, heights, units, origin):
     mask = np.array(ring_counts) > 0
     ring_counts = np.array(ring_counts)[mask]
     heights = np.asarray(heights, dtype=np.uint8)[mask]
+    extra_bytes = b"".join(np.asarray(e, dtype=np.uint8)[mask].tobytes() for e in extra) if extra is not None else b""
     if ring_counts.max(initial=0) > 255 or max(vert_counts, default=0) > 65535:
         sys.exit(f"{path.name}: too many rings or vertices in one polygon.")
     flat = np.concatenate(coords).astype("<i2") if coords else np.zeros((0, 2), "<i2")
@@ -415,6 +464,7 @@ def write_bin(path, polygons, heights, units, origin):
         flat.tobytes(),
         heights.tobytes(),
         ring_counts.astype(np.uint8).tobytes(),
+        extra_bytes,
     ])
     path.write_bytes(data)
     return {"buildings": int(len(ring_counts)), "vertices": int(len(flat)), "bytes": len(data)}
@@ -447,8 +497,18 @@ def main():
     # 05_plan.py clips its lines to the same land.
     (RAW / "_land.wkb").write_bytes(unary_union(land).wkb)
 
+    print("Parts of buildings")
+    b = b.reset_index(drop=True)
+    b, replaced = use_parts(b)
+    stats["parts"] = int((b["kind"] == "part").sum())
+    stats["outlinesReplacedByParts"] = int(replaced)
+
     print("Heights")
     b = assign_heights(b)
+    # Where a part starts above the ground (the floors over an arch, the top of a tower).
+    b["min_height"] = np.clip(np.nan_to_num(b["min_tag"].to_numpy(dtype=float), nan=0.0), 0, None)
+    b["min_height"] = np.minimum(b["min_height"], b["height"].astype(float) - 1).clip(0).round().astype(np.uint8)
+    b["roof"] = b["roof"].fillna(ROOF_AUTO).astype(np.uint8)
     stats["heightSource"] = {k: int(v) for k, v in b["height_source"].value_counts().items()}
 
     print("Simplifying")
@@ -479,7 +539,10 @@ def main():
         minx, miny, maxx, maxy = group.total_bounds
         origin = np.array([round((minx + maxx) / 2), round((miny + maxy) / 2)])
         slug = slugify(name)
-        info = write_bin(OUT / f"{slug}.bin", group.geometry.tolist(), group["height"].to_numpy(), UNITS_PER_METRE, origin)
+        info = write_bin(
+            OUT / f"{slug}.bin", group.geometry.tolist(), group["height"].to_numpy(), UNITS_PER_METRE, origin,
+            extra=(group["min_height"].to_numpy(), group["roof"].to_numpy()),
+        )
         chunks.append({
             "id": slug,
             "name": name,

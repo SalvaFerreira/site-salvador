@@ -23,7 +23,8 @@ const vec3 SUN = vec3(-0.72, 0.6, 0.34);
 void main() {
   vWall = wall;
   vSeed = seed;
-  vRoof = step(0.5, normal.y);
+  // Roofs face up; the steep faces of a dome or a spire are marked as roof by wall.z < 0.
+  vRoof = max(step(0.5, normal.y), step(wall.z, -0.5));
   vSun = dot(normalize(normal), SUN);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
