@@ -27,9 +27,10 @@ const page = await browser.newPage();
 
 async function shoot(path, file, width, height) {
   await page.setViewport({ width, height });
-  await page.goto(`${BASE}${path}?shot`, { waitUntil: "networkidle0" });
-  await page.waitForFunction(() => window.__city?.loadMs > 0, { timeout: 60000 });
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  // In daylight, whatever the hour in Lisbon when the images are taken.
+  await page.goto(`${BASE}${path}?shot&time=13:00`, { waitUntil: "domcontentloaded", timeout: 90000 });
+  await page.waitForFunction(() => window.__city?.loadMs > 0, { timeout: 90000 });
+  await new Promise((resolve) => setTimeout(resolve, 3000));
   await page.screenshot({ path: file, type: "jpeg", quality: 82 });
   console.log(file);
 }
@@ -39,7 +40,7 @@ await shoot("/", "public/city.jpg", 1600, 1000);
 await shoot("/", "public/og/home.jpg", 1200, 630);
 
 // The List knows every place and its address.
-await page.goto(`${BASE}/list`, { waitUntil: "networkidle0" });
+await page.goto(`${BASE}/list`, { waitUntil: "domcontentloaded" });
 const places = await page.$$eval("section[id]", (sections) =>
   sections.map((s) => ({ id: s.id, path: s.querySelector("h2 a").getAttribute("href") })),
 );
