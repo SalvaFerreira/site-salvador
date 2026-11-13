@@ -55,10 +55,16 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
     <header class="topbar">
       {
         entry ? (
-          <a class="name" href="/">{SITE_NAME}</a>
+          <a class="name" href="/">
+            <img class="topbar-photo" src={PORTRAIT} alt="" width="30" height="30" />
+            {SITE_NAME}
+          </a>
         ) : (
           <h1 class="name-heading">
-            <a class="name" href="/">{SITE_NAME}</a>
+            <a class="name" href="/">
+              <img class="topbar-photo" src={PORTRAIT} alt="" width="30" height="30" />
+              {SITE_NAME}
+            </a>
           </h1>
         )
       }

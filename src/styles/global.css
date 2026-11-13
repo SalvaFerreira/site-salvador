@@ -71,7 +71,7 @@ button:focus-visible {
   box-sizing: border-box;
   display: grid;
   grid-template-columns: auto 1fr;
-  align-items: baseline;
+  align-items: center;
   gap: 4px 16px;
   width: min(560px, calc(100% - 28px));
   padding: 11px 16px 12px;
@@ -83,6 +83,9 @@ button:focus-visible {
 }
 
 .topbar .name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font: 18px/1.2 var(--serif);
   color: var(--paper);
   text-decoration: none;
@@ -399,7 +402,15 @@ button:focus-visible {
   flex: none;
   width: 64px;
   height: 64px;
-  border-radius: 50%;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.topbar-photo {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
   object-fit: cover;
 }
 

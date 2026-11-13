@@ -22,13 +22,9 @@ function currentJob(places: Entry[]): Entry | undefined {
   return places.find((e) => e.data.category === "job" && e.data.period?.includes("Present") && e.data.title === "Deloitte");
 }
 
-/**
- * Title of the home page, for search results and link previews: the name, the current
- * position (from its content file) and the city.
- */
+/** Title of the home page (the browser tab, search results and link previews). */
 export async function getHomeTitle(): Promise<string> {
-  const role = currentJob(await getPlaces())?.data.role?.split(" · ")[0];
-  return role ? `${SITE_NAME} — ${role}, Lisbon` : SITE_NAME;
+  return `Profile - ${SITE_NAME}`;
 }
 
 export function pathOf(entry: Entry): string {
