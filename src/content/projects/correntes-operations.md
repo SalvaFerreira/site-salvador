@@ -15,7 +15,8 @@ order: 2
 date: "2025-06"
 # Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
 images: []
-stack: []
+# From the CV: "Built 10+ AI agents and automations (Python, LLMs)".
+stack: ["Python", "LLMs"]
 links:
   - label: "correntes.pt"
     url: "https://correntes.pt/"

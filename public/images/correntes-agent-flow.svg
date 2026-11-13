@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 210" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title>How the ofícios agent works</title>
+  <desc>A caregiver-replacement order arrives as a PDF. The LLM-powered agent reads it, updates the care-management system and reconciles the caregiver payments. Before, every step was done by hand; the agent is in development.</desc>
+  <rect width="680" height="210" rx="12" fill="#1f2126"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#b3ada1"/>
+    </marker>
+  </defs>
+
+  <!-- 1. the order -->
+  <g transform="translate(24 54)">
+    <rect width="132" height="84" rx="8" fill="#2a2d33" stroke="#44474e"/>
+    <path d="M18 16 h22 l8 8 v32 h-30 z" fill="none" stroke="#ddd6c9" stroke-width="1.5"/>
+    <path d="M40 16 v8 h8" fill="none" stroke="#ddd6c9" stroke-width="1.5"/>
+    <text x="21" y="47" font-size="8" fill="#ddd6c9">PDF</text>
+    <text x="58" y="30" font-size="12" fill="#f4efe6">Replacement</text>
+    <text x="58" y="45" font-size="12" fill="#f4efe6">order</text>
+    <text x="18" y="73" font-size="10.5" fill="#b3ada1">unstructured</text>
+  </g>
+
+  <!-- 2. the agent -->
+  <g transform="translate(194 40)">
+    <rect width="150" height="112" rx="8" fill="#2a2d33" stroke="#e8833a" stroke-width="1.6"/>
+    <circle cx="26" cy="28" r="9" fill="#e8833a"/>
+    <text x="44" y="32" font-size="13" font-weight="600" fill="#f4efe6">LLM agent</text>
+    <text x="16" y="62" font-size="11" fill="#ddd6c9">reads the order and</text>
+    <text x="16" y="78" font-size="11" fill="#ddd6c9">pulls out what the</text>
+    <text x="16" y="94" font-size="11" fill="#ddd6c9">next steps need</text>
+  </g>
+
+  <!-- 3. the care-management system -->
+  <g transform="translate(386 22)">
+    <rect width="270" height="64" rx="8" fill="#2a2d33" stroke="#44474e"/>
+    <text x="16" y="27" font-size="12" fill="#f4efe6">Updates the internal</text>
+    <text x="16" y="44" font-size="12" fill="#f4efe6">care-management system</text>
+  </g>
+
+  <!-- 4. payments -->
+  <g transform="translate(386 108)">
+    <rect width="270" height="64" rx="8" fill="#2a2d33" stroke="#44474e"/>
+    <text x="16" y="27" font-size="12" fill="#f4efe6">Reconciles the caregiver</text>
+    <text x="16" y="44" font-size="12" fill="#f4efe6">payments</text>
+  </g>
+
+  <path d="M156 96 H190" stroke="#b3ada1" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M344 84 C362 84 362 54 382 54" fill="none" stroke="#b3ada1" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M344 108 C362 108 362 140 382 140" fill="none" stroke="#b3ada1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <text x="24" y="194" font-size="11" fill="#b3ada1">Before: every step by hand, end to end. The agent (in development) does them automatically.</text>
+</svg>
