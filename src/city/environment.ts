@@ -17,6 +17,13 @@ export const shared = {
   uWet: { value: 0 },
 };
 
+/**
+ * How much detail the scene can afford on this computer: 2 everything, 1 fewer
+ * trees and no people, 0 the bare city. Lowered by QualityGovernor in City.tsx
+ * when the frame rate is too low; ?quality=0|1|2 fixes it.
+ */
+export const quality = { level: 2 };
+
 /** Colour behind the map, outside the area that was modelled. */
 export const BACKDROP = "#22252b";
 

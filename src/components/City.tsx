@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { Color, MOUSE, TOUCH, Vector3, type BufferGeometry, type OrthographicCamera } from "three";
 import type { Line2, OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ACCENT_SLOTS, createBuildingMaterial } from "../city/buildingMaterial";
-import { BACKDROP, createFlatMaterial, shadowMaterials, shared } from "../city/environment";
+import { BACKDROP, createFlatMaterial, quality, shadowMaterials, shared } from "../city/environment";
 import { createHaloMaterial, createRiverMaterial, createShadowMaterial, createStreetMaterial, STREET_HALF_WIDTH } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type Featured, type Manifest } from "../city/loadCity";
@@ -86,6 +86,8 @@ interface Chunk {
 }
 
 interface Stats {
+  /** Detail level chosen by QualityGovernor (2 full, 0 least). */
+  quality?: number;
   buildings: number;
   triangles: number;
   firstChunkMs: number;
@@ -251,6 +253,61 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
   }, [stops, projects, onStats]);
 
   return { manifest, land, roads, chunks, places, plan, cover, street };
+}
+
+const MAX_DPR = 1.5;
+/** Frame rate below which the scene gives up some detail. */
+const LOW_FPS = 45;
+
+/**
+ * Watches the frame rate once the city has loaded and, if it stays low, steps
+ * the detail down (QualityGovernor levels in environment.ts) and draws fewer
+ * pixels. It only ever steps down, so it never swings back and forth.
+ */
+function QualityGovernor({ loaded, onStats }: { loaded: boolean; onStats: OnStats }) {
+  const setDpr = useThree((s) => s.setDpr);
+  const forced = useMemo(() => {
+    const q = new URLSearchParams(window.location.search).get("quality");
+    return q === null ? null : Math.max(0, Math.min(2, Number(q)));
+  }, []);
+  const window_ = useRef({ frames: 0, time: 0, wait: 3 });
+
+  const apply = useCallback(
+    (level: number) => {
+      quality.level = level;
+      const native = window.devicePixelRatio || 1;
+      setDpr(level === 2 ? Math.min(native, MAX_DPR) : level === 1 ? Math.min(native, 1) : Math.min(native, 0.8));
+      onStats({ quality: level });
+    },
+    [setDpr, onStats],
+  );
+
+  useEffect(() => {
+    if (forced !== null) apply(forced);
+  }, [forced, apply]);
+
+  useFrame((_, delta) => {
+    // Only once every neighbourhood has loaded: loading itself makes frames uneven.
+    const allLoaded = loaded && (window.__city?.loadMs ?? 0) > 0;
+    if (forced !== null || !allLoaded || quality.level === 0 || document.hidden) return;
+    const w = window_.current;
+    // Give the city a moment to settle (loading, the first flights) before judging.
+    if (w.wait > 0) {
+      w.wait -= delta;
+      return;
+    }
+    w.frames += 1;
+    w.time += Math.min(delta, 0.25);
+    if (w.time < 3) return;
+    const fps = w.frames / w.time;
+    w.frames = 0;
+    w.time = 0;
+    if (fps < LOW_FPS) {
+      apply(quality.level - 1);
+      w.wait = 2;
+    }
+  });
+  return null;
 }
 
 /** Runs the clock that moves everything in the city, and measures the frame rate. */
@@ -800,6 +857,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       <LabelPositioner spots={spots} places={places} panelOpen={panelOpen} />
 
       <Clock onStats={onStats} />
+      <QualityGovernor loaded={chunks.length > 0 && !!roads} onStats={onStats} />
     </>
   );
 }
@@ -1061,7 +1119,9 @@ export default function City({
         <Canvas
           orthographic
           flat
-          dpr={PHONE ? [1, 1.5] : [1, 2]}
+          // At most 1.5 pixels per screen pixel: on high-density screens the difference is
+          // hard to see, and it saves about 40% of the pixels. QualityGovernor may go lower.
+          dpr={[1, MAX_DPR]}
           gl={{ antialias: true, stencil: true, powerPreference: "high-performance" }}
           camera={{ position: VIEW_FROM.clone().multiplyScalar(CAMERA_DISTANCE).add(BAIXA), zoom: startZoom(), near: 100, far: 30000 }}
         >
@@ -1160,7 +1220,7 @@ export default function City({
       )}
       {showStats && live && (
         <p className="stats">
-          {`${stats.fps} fps\n${stats.buildings} buildings, ${stats.triangles} triangles\nfirst neighbourhood ${stats.firstChunkMs} ms, all ${stats.loadMs} ms`}
+          {`${stats.fps} fps, quality ${stats.quality ?? 2}\n${stats.buildings} buildings, ${stats.triangles} triangles\nfirst neighbourhood ${stats.firstChunkMs} ms, all ${stats.loadMs} ms`}
         </p>
       )}
     </div>

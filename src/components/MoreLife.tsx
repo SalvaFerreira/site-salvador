@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { BoxGeometry, BufferAttribute, BufferGeometry, Color, Object3D, ShaderMaterial, type Group, type InstancedMesh } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { createLightMaterial, shared, withNight } from "../city/environment";
+import { createLightMaterial, quality, shared, withNight } from "../city/environment";
 import { createTrackMaterial } from "../city/groundMaterials";
 import { buildRibbons, type Polyline } from "../city/lines";
 import { project, type Manifest } from "../city/loadCity";
@@ -312,7 +312,7 @@ export function Bikes({ lines }: { lines: Polyline[] }) {
     const m = mesh.current;
     if (!m) return;
     const { box: b, zoom } = view();
-    if (zoom < BIKE_ZOOM) {
+    if (zoom < BIKE_ZOOM || quality.level === 0) {
       m.count = 0;
       return;
     }
@@ -377,7 +377,7 @@ export function Viewpoints({ points }: { points: number[][] }) {
 
   const view = useViewBox();
   useFrame(() => {
-    if (mesh.current) mesh.current.visible = view().zoom >= CROWD_ZOOM;
+    if (mesh.current) mesh.current.visible = view().zoom >= CROWD_ZOOM && quality.level > 0;
   });
 
   if (!count) return null;
@@ -432,7 +432,7 @@ export function Terraces({ points }: { points: number[][] }) {
 
   const view = useViewBox();
   useFrame(() => {
-    const visible = view().zoom >= CROWD_ZOOM;
+    const visible = view().zoom >= CROWD_ZOOM && quality.level > 0;
     if (tops.current) tops.current.visible = visible;
     if (stands.current) stands.current.visible = visible;
   });

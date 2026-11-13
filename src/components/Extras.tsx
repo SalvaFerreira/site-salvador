@@ -8,6 +8,7 @@ import {
   CircleGeometry,
   Color,
   IcosahedronGeometry,
+  OctahedronGeometry,
   InstancedMesh,
   Matrix4,
   MeshLambertMaterial,
@@ -16,7 +17,7 @@ import {
   type Mesh,
   type OrthographicCamera,
 } from "three";
-import { createFlatMaterial, shared } from "../city/environment";
+import { createFlatMaterial, quality, shared } from "../city/environment";
 import { createGrassMaterial, createShadowMaterial, createTrafficMaterial } from "../city/groundMaterials";
 import { buildRibbons } from "../city/lines";
 import { loadShapes, SHADOW_PER_M, type Manifest } from "../city/loadCity";
@@ -103,9 +104,9 @@ function grassMaterial(color: string) {
 
 const TREE_COLORS = ["#73a35f", "#669656", "#82b06a", "#5c8a4f", "#8db574"].map((c) => new Color(c));
 
-/** A low-poly canopy: lighter on top, darker underneath. */
-function createCanopyGeometry(): BufferGeometry {
-  const geometry = new IcosahedronGeometry(1, 0);
+/** A low-poly canopy: lighter on top, darker underneath. `simple`: 8 faces instead of 20, for wide views. */
+function createCanopyGeometry(simple = false): BufferGeometry {
+  const geometry = simple ? new OctahedronGeometry(1, 0) : new IcosahedronGeometry(1, 0);
   const position = geometry.getAttribute("position");
   const color = new Float32Array(position.count * 3);
   for (let i = 0; i < position.count; i++) {
@@ -185,6 +186,8 @@ export function scatterOver(green: BufferGeometry, count: number, random: () => 
 
 interface TreeTile {
   canopies: InstancedMesh;
+  /** The same trees with simpler canopies, for wide views. */
+  simple: InstancedMesh;
   shadows: InstancedMesh;
   total: number;
 }
@@ -194,8 +197,15 @@ interface TreeTile {
  * away a tree is a pixel or two, so most of them can be left out unnoticed.
  */
 function treeShare(zoom: number): number {
-  return zoom >= 0.55 ? 1 : zoom >= 0.28 ? 0.5 : 0.25;
+  const byZoom = zoom >= 0.55 ? 1 : zoom >= 0.28 ? 0.4 : 0.1;
+  // On slower computers fewer still (see quality in environment.ts).
+  return byZoom * (quality.level === 2 ? 1 : quality.level === 1 ? 0.6 : 0.35);
 }
+
+/** Close up, canopies have 20 faces; from further away 8 do (they are a few pixels wide). */
+const SIMPLE_CANOPY_BELOW_ZOOM = 0.55;
+/** Tree shadows only when they are large enough to see. */
+const TREE_SHADOW_ZOOM = 0.8;
 
 interface ParksProps {
   plan: PlanData;
@@ -242,6 +252,7 @@ export function Parks({ plan, cover }: ParksProps) {
     for (let i = 0; i < woodland.length; i += 2) add(woodland[i], woodland[i + 1], 5 + random() * 4);
 
     const canopy = createCanopyGeometry();
+    const simpleCanopy = createCanopyGeometry(true);
     const canopyMaterial = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
     const disc = new CircleGeometry(1, 7).rotateX(-Math.PI / 2);
     const shadowMaterial = createShadowMaterial();
@@ -254,6 +265,7 @@ export function Parks({ plan, cover }: ParksProps) {
         [list[i], list[j]] = [list[j], list[i]];
       }
       const canopies = new InstancedMesh(canopy, canopyMaterial, list.length);
+      const simple = new InstancedMesh(simpleCanopy, canopyMaterial, list.length);
       const shadows = new InstancedMesh(disc, shadowMaterial, list.length);
       list.forEach((tree, i) => {
         const { x, y, r } = tree;
@@ -262,7 +274,10 @@ export function Parks({ plan, cover }: ParksProps) {
         dummy.rotation.set(0, random() * Math.PI, 0);
         dummy.updateMatrix();
         canopies.setMatrixAt(i, dummy.matrix);
-        canopies.setColorAt(i, TREE_COLORS[Math.floor(random() * TREE_COLORS.length)]);
+        simple.setMatrixAt(i, dummy.matrix);
+        const color = TREE_COLORS[Math.floor(random() * TREE_COLORS.length)];
+        canopies.setColorAt(i, color);
+        simple.setColorAt(i, color);
         // The shadow lies on the ground, away from the sun.
         dummy.position.set(x + SHADOW_PER_M[0] * r, 0.72, -(y + SHADOW_PER_M[1] * r));
         dummy.scale.set(r * 0.95, 1, r * 0.95);
@@ -270,29 +285,36 @@ export function Parks({ plan, cover }: ParksProps) {
         dummy.updateMatrix();
         shadows.setMatrixAt(i, dummy.matrix);
       });
-      for (const mesh of [canopies, shadows]) {
+      for (const mesh of [canopies, simple, shadows]) {
         mesh.instanceMatrix.needsUpdate = true;
         mesh.computeBoundingSphere();
         mesh.raycast = noRaycast;
       }
       shadows.renderOrder = 2;
-      out.push({ canopies, shadows, total: list.length });
+      out.push({ canopies, simple, shadows, total: list.length });
     }
     return out;
   }, [green, inventory, cover]);
 
-  // Starts at 0 so the first frame always sets the counts.
-  const share = useRef(0);
+  // Starts empty so the first frame always sets the counts.
+  const state = useRef("");
   useFrame(({ camera }) => {
     const zoom = (camera as OrthographicCamera).zoom;
     const next = treeShare(zoom);
-    if (next === share.current) return;
-    share.current = next;
+    const near = zoom >= SIMPLE_CANOPY_BELOW_ZOOM;
+    const shadows = zoom >= TREE_SHADOW_ZOOM;
+    const key = `${next},${near},${shadows}`;
+    if (key === state.current) return;
+    state.current = key;
     for (const tile of tiles) {
-      tile.canopies.count = Math.ceil(tile.total * next);
-      tile.shadows.count = tile.canopies.count;
+      const count = Math.ceil(tile.total * next);
+      tile.canopies.count = count;
+      tile.simple.count = count;
+      tile.canopies.visible = near;
+      tile.simple.visible = !near;
+      tile.shadows.count = count;
       // Tree shadows are too small to see once the view is wide.
-      tile.shadows.visible = zoom >= 0.45;
+      tile.shadows.visible = shadows;
     }
   });
 
@@ -326,6 +348,7 @@ export function Parks({ plan, cover }: ParksProps) {
       {tiles.map((tile, i) => (
         <group key={i}>
           <primitive object={tile.canopies} />
+          <primitive object={tile.simple} />
           <primitive object={tile.shadows} />
         </group>
       ))}

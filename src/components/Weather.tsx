@@ -13,7 +13,7 @@ import {
   type Mesh,
   type OrthographicCamera,
 } from "three";
-import { shared } from "../city/environment";
+import { quality, shared } from "../city/environment";
 
 export interface Weather {
   /** 0 clear to 1 overcast. */
@@ -285,7 +285,7 @@ export function WeatherEffects({ weather, reducedMotion }: { weather: Weather; r
       material.uniforms.uWind.value = wind;
     }
     // No sun at night, so no cloud shadows to draw.
-    if (shadowSheet.current) shadowSheet.current.visible = e.clouds > 0.05 && shared.uNight.value < 0.97;
+    if (shadowSheet.current) shadowSheet.current.visible = e.clouds > 0.05 && shared.uNight.value < 0.97 && quality.level > 0;
     if (fogSheet.current) fogSheet.current.visible = e.fog > 0.02;
 
     const r = rain.material as ShaderMaterial;
@@ -296,7 +296,7 @@ export function WeatherEffects({ weather, reducedMotion }: { weather: Weather; r
     r.uniforms.uPixel.value = 1 / camera.zoom;
     r.uniforms.uWind.value = [wind[0] * 0.25, wind[1] * 0.25];
     // Fewer, but still visible, streaks when the view is wide.
-    rain.count = Math.round(DROPS * Math.min(1, 0.35 + camera.zoom * 0.5) * e.rain);
+    rain.count = Math.round(DROPS * Math.min(1, 0.35 + camera.zoom * 0.5) * e.rain * (quality.level === 0 ? 0.3 : 1));
   });
 
   return (

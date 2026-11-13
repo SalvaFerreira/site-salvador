@@ -19,7 +19,7 @@ import {
   type OrthographicCamera,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { createFlatMaterial, shared } from "../city/environment";
+import { createFlatMaterial, quality, shared } from "../city/environment";
 import { createCalcadaMaterial, createTrafficMaterial } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 
@@ -530,7 +530,7 @@ export function People({ roads, crossings }: { roads: Polyline[]; crossings: Str
     const m = mesh.current;
     if (!m) return;
     const { box, zoom } = view();
-    if (zoom < PEOPLE_ZOOM) {
+    if (zoom < PEOPLE_ZOOM || quality.level < 2) {
       m.count = 0;
       return;
     }

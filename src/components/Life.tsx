@@ -112,6 +112,8 @@ const box = (w: number, h: number, d: number, x: number, y: number, z: number, c
 // ---------------------------------------------------------------- cars
 
 const CAR_COUNT = 4000;
+/** Cars off screen are moved once every this many frames. */
+const OFFSCREEN_EVERY = 4;
 /** Local streets carry cars only this close to the centre (metres from the Baixa). */
 const LOCAL_STREETS_WITHIN_M = 2200;
 const CAR_COLORS = ["#f1f1ee", "#f1f1ee", "#b9bcc0", "#74787d", "#1f2124", "#a4776e", "#76869b", "#d8c98f"].map(
@@ -269,6 +271,9 @@ export function Cars({ roads, street }: { roads: Polyline[]; street: StreetData 
     const distance = new Float32Array(count);
     const speed = new Float32Array(count);
     const next = new Int16Array(count);
+    // Where each car was last seen, to tell the ones off screen (updated less often).
+    const lastX = new Float32Array(count).fill(Infinity);
+    const lastY = new Float32Array(count).fill(Infinity);
     for (let i = 0; i < count; i++) {
       // More cars on longer streets.
       let target = random() * total;
@@ -284,7 +289,7 @@ export function Cars({ roads, street }: { roads: Polyline[]; street: StreetData 
     }
     const colorRandom = randomFrom(99);
     const colors = Array.from({ length: count }, () => CAR_COLORS[Math.floor(colorRandom() * CAR_COLORS.length)]);
-    return { ways, way, distance, speed, next, count, random, colors };
+    return { ways, way, distance, speed, next, count, random, colors, lastX, lastY };
   }, [roads]);
   const stops = useMemo(() => (street ? findStops(state.ways, street) : null), [state, street]);
 
@@ -292,6 +297,7 @@ export function Cars({ roads, street }: { roads: Polyline[]; street: StreetData 
   const spot = useMemo<Spot>(() => ({ x: 0, y: 0, height: 0, heading: 0 }), []);
   const geometry = useMemo(createCarGeometry, []);
   const view = useViewBox();
+  const frame = useRef(0);
 
   useFrame((_, delta) => {
     const m = mesh.current;
@@ -299,15 +305,21 @@ export function Cars({ roads, street }: { roads: Polyline[]; street: StreetData 
     // A long pause (a hidden tab) must not send every car flying down the road.
     const dt = Math.min(delta, 0.1);
     const time = shared.uTime.value;
-    const { ways, way, distance, speed, next, random, colors } = state;
+    const { ways, way, distance, speed, next, random, colors, lastX, lastY } = state;
+    frame.current = (frame.current + 1) % OFFSCREEN_EVERY;
+    const margin = 300;
     const { box, zoom } = view();
     // In the widest view a car would be a pixel or two: they keep driving but are not drawn.
     const draw = zoom >= 0.3;
     let shown = 0;
     for (let i = 0; i < state.count; i++) {
+      // Cars off screen move in bigger steps, a quarter of them each frame: nobody sees them.
+      const offscreen =
+        !draw || lastX[i] < box[0] - margin || lastX[i] > box[2] + margin || lastY[i] < box[1] - margin || lastY[i] > box[3] + margin;
+      if (offscreen && i % OFFSCREEN_EVERY !== frame.current) continue;
       let w = ways[way[i]];
       const base = w.cls === 0 ? 14 : w.cls === 1 ? 9 : 6; // m/s
-      let step = base * speed[i] * dt;
+      let step = base * speed[i] * dt * (offscreen ? OFFSCREEN_EVERY : 1);
 
       const s = stops?.[way[i]];
       if (s) {
@@ -339,6 +351,8 @@ export function Cars({ roads, street }: { roads: Polyline[]; street: StreetData 
       }
       if (!draw) continue;
       along(w, distance[i], spot);
+      lastX[i] = spot.x;
+      lastY[i] = spot.y;
       if (spot.x < box[0] || spot.x > box[2] || spot.y < box[1] || spot.y > box[3]) continue;
       // Keep to the right-hand side of the road.
       const side = w.cls === 2 ? 1.6 : 2.4;
