@@ -10,6 +10,25 @@ export const hasCv = existsSync(`./public${CV_PATH}`);
 
 export type Entry = CollectionEntry<"projects">;
 
+/** HTML of a content file without its comments: they are notes for editing, not for visitors. */
+export function htmlOf(rendered: { html?: string } | undefined): string {
+  return (rendered?.html ?? "").replace(/<!--[\s\S]*?-->\s*/g, "");
+}
+
+/** The current job, if any: the one still running, at Deloitte. */
+function currentJob(places: Entry[]): Entry | undefined {
+  return places.find((e) => e.data.category === "job" && e.data.period?.includes("Present") && e.data.title === "Deloitte");
+}
+
+/**
+ * Title of the home page, for search results and link previews: the name, the current
+ * position (from its content file) and the city.
+ */
+export async function getHomeTitle(): Promise<string> {
+  const role = currentJob(await getPlaces())?.data.role?.split(" · ")[0];
+  return role ? `${SITE_NAME} — ${role}, Lisbon` : SITE_NAME;
+}
+
 export function pathOf(entry: Entry): string {
   return entry.data.kind === "work" ? `/work/${entry.id}` : `/${entry.data.kind}`;
 }
@@ -18,7 +37,7 @@ export function pathOf(entry: Entry): string {
 export async function getAbout(): Promise<{ masthead: string; html: string }> {
   const entry = await getEntry("site", "about");
   if (!entry) throw new Error("src/content/site/about.md is missing");
-  return { masthead: entry.data.masthead, html: entry.rendered?.html ?? "" };
+  return { masthead: entry.data.masthead, html: htmlOf(entry.rendered) };
 }
 
 /** Email address and LinkedIn profile, from the links of the contact entry. */
@@ -37,7 +56,7 @@ export async function getContact(): Promise<{ email?: string; linkedin?: string 
  */
 export async function getPerson(site: URL | undefined): Promise<Record<string, unknown>> {
   const [about, places, contact] = await Promise.all([getAbout(), getPlaces(), getContact()]);
-  const current = places.find((e) => e.data.category === "job" && e.data.period?.includes("Present") && e.data.title === "Deloitte");
+  const current = currentJob(places);
   const schools = places.filter((e) => e.data.category === "education");
   return {
     "@context": "https://schema.org",
@@ -45,7 +64,6 @@ export async function getPerson(site: URL | undefined): Promise<Record<string, u
     name: SITE_NAME,
     description: about.masthead,
     ...(site ? { url: site.href } : {}),
-    ...(contact.email ? { email: contact.email.replace(/^mailto:/, "") } : {}),
     ...(current ? { jobTitle: current.data.role?.split(" · ")[0], worksFor: { "@type": "Organization", name: current.data.title } } : {}),
     alumniOf: schools.map((e) => ({ "@type": "CollegeOrUniversity", name: e.data.title })),
     address: { "@type": "PostalAddress", addressLocality: "Lisbon", addressCountry: "PT" },

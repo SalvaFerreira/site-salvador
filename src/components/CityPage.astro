@@ -1,7 +1,7 @@
 ---
 import City from "./City";
 import Head from "./Head.astro";
-import { CV_IMAGE, CV_PATH, getAbout, getContact, getPerson, getPlaces, hasCv, pathOf, SITE_NAME, type Entry } from "../lib/places";
+import { CV_IMAGE, CV_PATH, getAbout, getContact, getHomeTitle, getPerson, getPlaces, htmlOf, hasCv, pathOf, SITE_NAME, type Entry } from "../lib/places";
 import { CATEGORY_COLOR } from "./City";
 import "../styles/global.css";
 
@@ -14,6 +14,7 @@ const places = await getPlaces();
 const about = await getAbout();
 const contact = await getContact();
 const person = entry ? undefined : await getPerson(Astro.site);
+const homeTitle = await getHomeTitle();
 const projects = places.map((e) => ({
   slug: e.id,
   path: pathOf(e),
@@ -34,7 +35,7 @@ const projects = places.map((e) => ({
   images: e.data.images,
   stack: e.data.stack,
   links: e.data.links,
-  html: e.rendered?.html ?? "",
+  html: htmlOf(e.rendered),
 }));
 const description = entry ? `${entry.data.title} — ${entry.data.place}` : about.masthead;
 ---
@@ -42,17 +43,25 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
 <!doctype html>
 <html lang="en">
   <head>
-    <Head title={entry?.data.title} description={description} image={entry?.id} jsonLd={person} />
+    <Head title={entry?.data.title} fullTitle={entry ? undefined : homeTitle} description={description} image={entry?.id} jsonLd={person} />
     <script is:inline>
       // ?shot hides the interface, for taking the preview images.
       if (new URLSearchParams(location.search).has("shot")) document.documentElement.classList.add("shot");
     </script>
   </head>
   <body class="city-page">
-    <City client:only="react" projects={projects} initialPath={entry ? pathOf(entry) : undefined} email={contact.email} linkedin={contact.linkedin} />
+    <City client:only="react" projects={projects} initialPath={entry ? pathOf(entry) : undefined} email={contact.email} linkedin={contact.linkedin} homeTitle={homeTitle} />
 
     <header class="topbar">
-      <a class="name" href="/">{SITE_NAME}</a>
+      {
+        entry ? (
+          <a class="name" href="/">{SITE_NAME}</a>
+        ) : (
+          <h1 class="name-heading">
+            <a class="name" href="/">{SITE_NAME}</a>
+          </h1>
+        )
+      }
       <p class="thesis">{about.masthead}</p>
       <nav aria-label="Site">
         {hasCv && <a href={CV_PATH} class="cv-open">CV</a>}
@@ -94,7 +103,7 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
       ><span class="attr-short"> · CM Lisboa</span>
     </p>
 
-    <!-- Welcome card: on the first visit of a session to the home page only, never on a project's own address. -->
+    {/* Welcome card: on the first visit of a session to the home page only, never on a project's own address. */}
     <section class="intro" id="intro" role="dialog" aria-labelledby="intro-title" tabindex="-1" data-home={entry ? "no" : "yes"} hidden>
       <button type="button" class="intro-close" id="intro-close">Close</button>
       <h2 id="intro-title">{SITE_NAME}</h2>

@@ -77,6 +77,11 @@ button:focus-visible {
   padding: 11px 16px 12px;
 }
 
+.topbar .name-heading {
+  margin: 0;
+  font: inherit;
+}
+
 .topbar .name {
   font: 18px/1.2 var(--serif);
   color: var(--paper);

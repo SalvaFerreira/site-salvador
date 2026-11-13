@@ -977,11 +977,14 @@ export default function City({
   initialPath,
   email,
   linkedin,
+  homeTitle = "Salvador Ferreira",
 }: {
   projects: Project[];
   initialPath?: string;
   email?: string;
   linkedin?: string;
+  /** Title of the page when no place is open. */
+  homeTitle?: string;
 }) {
   const live = useMemo(canRunCity, []);
   const stops = useMemo(() => toStops(projects), [projects]);
@@ -1049,8 +1052,8 @@ export default function City({
   }, [projects]);
 
   useEffect(() => {
-    document.title = current ? `${current.title} — Salvador Ferreira` : "Salvador Ferreira";
-  }, [current]);
+    document.title = current ? `${current.title} — Salvador Ferreira` : homeTitle;
+  }, [current, homeTitle]);
 
   usePageButton("zoom-in", live, () => api.current?.zoomBy(1.6));
   usePageButton("zoom-out", live, () => api.current?.zoomBy(1 / 1.6));

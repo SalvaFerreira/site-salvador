@@ -1,16 +1,13 @@
 ---
 // Everything on the site as plain text, in reading order.
-import { render } from "astro:content";
 import Head from "../components/Head.astro";
-import { CV_PATH, getAbout, getPerson, getPlaces, hasCv, pathOf, SITE_NAME } from "../lib/places";
+import { CV_PATH, getAbout, getPerson, getPlaces, hasCv, htmlOf, pathOf, SITE_NAME } from "../lib/places";
 import "../styles/global.css";
 
 const places = await getPlaces();
 const about = await getAbout();
 const person = await getPerson(Astro.site);
-const sections = await Promise.all(
-  places.map(async (entry) => ({ entry, Content: (await render(entry)).Content })),
-);
+const sections = places.map((entry) => ({ entry, html: htmlOf(entry.rendered) }));
 ---
 
 <!doctype html>
@@ -30,7 +27,7 @@ const sections = await Promise.all(
       </header>
 
       {
-        sections.map(({ entry, Content }) => (
+        sections.map(({ entry, html }) => (
           <section id={entry.id}>
             <p class="list-place">{entry.data.place}</p>
             <h2>
@@ -40,7 +37,7 @@ const sections = await Promise.all(
               <p class="list-role">{[entry.data.role, entry.data.period].filter(Boolean).join(" · ")}</p>
             )}
             {entry.data.stack.length > 0 && <p class="list-place">{entry.data.stack.join(" · ")}</p>}
-            <Content />
+            <Fragment set:html={html} />
             {entry.data.images.map((image) => (
               <img class="list-image" src={image.src} alt={image.alt} loading="lazy" />
             ))}

@@ -5,6 +5,8 @@ import { SITE_NAME } from "../lib/places";
 
 interface Props {
   title?: string;
+  /** The whole title, for the home page (otherwise "<title> — <name>"). */
+  fullTitle?: string;
   description: string;
   /** Name of the preview image in public/og/, without extension. */
   image?: string;
@@ -13,7 +15,7 @@ interface Props {
 }
 
 const { title, description, image, jsonLd } = Astro.props;
-const fullTitle = title ? `${title} — ${SITE_NAME}` : SITE_NAME;
+const fullTitle = Astro.props.fullTitle ?? (title ? `${title} — ${SITE_NAME}` : SITE_NAME);
 const base = Astro.site ?? Astro.url;
 const canonical = new URL(Astro.url.pathname, base);
 const preview = image && existsSync(`./public/og/${image}.jpg`) ? image : "home";
