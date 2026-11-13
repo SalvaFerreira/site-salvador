@@ -259,17 +259,28 @@ function Fireworks() {
   );
 }
 
-/** Whatever the date calls for. */
-export function Festivities({ roads }: { roads: Polyline[] }) {
+export type Holiday = "christmas" | "santos" | "newyear";
+
+/** The holidays that can be switched on from the clock, and the hour each is best seen at (Lisbon minutes). */
+export const HOLIDAYS: { id: Holiday; label: string; time: number }[] = [
+  { id: "christmas", label: "Christmas", time: 20 * 60 },
+  { id: "santos", label: "Santos Populares", time: 13 * 60 },
+  { id: "newyear", label: "New Year's Eve", time: 23 * 60 + 59 },
+];
+
+/** Whatever the date calls for, or the holiday chosen on the clock (`forced`). */
+export function Festivities({ roads, forced }: { roads: Polyline[]; forced: Holiday | null }) {
   const { month, day } = useMemo(lisbonDate, []);
-  const christmas = month === 12 || (month === 1 && day <= 6);
-  const santos = month === 6;
+  const christmas = forced ? forced === "christmas" : month === 12 || (month === 1 && day <= 6);
+  const santos = forced ? forced === "santos" : month === 6;
   // Midnight on New Year's Eve, by Lisbon's clocks (or ?date=…-12-31 or -01-01 with ?time=).
   const minutes = useMemo(() => {
     const forced = new URLSearchParams(window.location.search).get("time")?.match(/^(\d{1,2}):(\d{2})$/);
     return forced ? Number(forced[1]) * 60 + Number(forced[2]) : lisbonMinutes(new Date());
   }, []);
-  const newYear = (month === 12 && day === 31 && minutes >= 23 * 60 + 30) || (month === 1 && day === 1 && minutes <= 45);
+  const newYear = forced
+    ? forced === "newyear"
+    : (month === 12 && day === 31 && minutes >= 23 * 60 + 30) || (month === 1 && day === 1 && minutes <= 45);
   return (
     <>
       {christmas && <ChristmasLights roads={roads} />}

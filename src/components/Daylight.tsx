@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { Color, type AmbientLight, type DirectionalLight } from "three";
 import { atLisbonMinutes, formatMinutes, lightFor, lisbonMinutes, litShare, sunDay, sunElevation } from "../city/daylight";
 import { shadowMaterials, shared } from "../city/environment";
+import { HOLIDAYS, type Holiday } from "./Festivities";
 
 /** The moment to light the city for: now, or a time of day chosen on the clock (Lisbon minutes). */
 function momentFor(override: number | null): Date {
@@ -81,14 +82,36 @@ export function SunClock({
   override,
   onChange,
   weather,
+  holiday,
+  onHoliday,
 }: {
   override: number | null;
   onChange: (minutes: number | null) => void;
   /** "17 °C · light rain" */
   weather: string;
+  holiday: Holiday | null;
+  /** Switch a holiday on (with the hour it is best seen at), or off (null, back to now). */
+  onHoliday: (holiday: Holiday | null, time: number | null) => void;
 }) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [holidaysOpen, setHolidaysOpen] = useState(false);
+  const holidaysRef = useRef<HTMLSpanElement>(null);
+
+  // The holidays menu closes with Esc or a click elsewhere.
+  useEffect(() => {
+    if (!holidaysOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setHolidaysOpen(false);
+    const onClick = (e: MouseEvent) => {
+      if (!holidaysRef.current?.contains(e.target as Node)) setHolidaysOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("click", onClick);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("click", onClick);
+    };
+  }, [holidaysOpen]);
 
   useEffect(() => {
     const element = document.getElementById("clock");
@@ -180,8 +203,55 @@ export function SunClock({
               {label}
             </button>
           ))}
+          <span className="holidays" ref={holidaysRef}>
+            <button
+              type="button"
+              aria-expanded={holidaysOpen}
+              aria-pressed={holiday !== null}
+              onClick={() => setHolidaysOpen((open) => !open)}
+            >
+              {holiday ? HOLIDAYS.find((h) => h.id === holiday)!.label : "Holidays"}
+            </button>
+            {holidaysOpen && (
+              <span className="holidays-menu" role="menu">
+                {HOLIDAYS.map((h) => (
+                  <button
+                    key={h.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={holiday === h.id}
+                    onClick={() => {
+                      onHoliday(h.id, h.time);
+                      setHolidaysOpen(false);
+                    }}
+                  >
+                    {h.label}
+                  </button>
+                ))}
+                {holiday && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onHoliday(null, null);
+                      setHolidaysOpen(false);
+                    }}
+                  >
+                    Off: today's date
+                  </button>
+                )}
+              </span>
+            )}
+          </span>
           {override !== null && (
-            <button type="button" className="sun-reset" onClick={() => onChange(null)}>
+            <button
+              type="button"
+              className="sun-reset"
+              onClick={() => {
+                onChange(null);
+                if (holiday) onHoliday(null, null);
+              }}
+            >
               Now
             </button>
           )}

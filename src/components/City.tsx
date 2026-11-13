@@ -11,7 +11,7 @@ import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type F
 import { Bridge, loadCover, loadPlan, Parks, type CoverData, type PlanData } from "./Extras";
 import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
 import { Daylight, SunClock } from "./Daylight";
-import { Festivities } from "./Festivities";
+import { Festivities, type Holiday } from "./Festivities";
 import { describe, useWeather, WeatherEffects, type Weather } from "./Weather";
 import { Bikes, CruiseShip, Funiculars, Gulls, SantaJusta, Terraces, Viewpoints } from "./MoreLife";
 import Panel from "./Panel";
@@ -680,9 +680,11 @@ interface SceneProps {
   /** Time of day chosen on the clock (Lisbon minutes), or null for now. */
   timeOverride: number | null;
   weather: Weather;
+  /** A holiday switched on from the clock, or null for the real date. */
+  holiday: Holiday | null;
 }
 
-function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots, timeOverride, weather }: SceneProps) {
+function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots, timeOverride, weather, holiday }: SceneProps) {
   const { manifest, land, roads, chunks, places, plan, cover, street } = useCity(stops, projects, onStats);
   const buildingMaterial = useMemo(() => {
     const material = createBuildingMaterial();
@@ -780,7 +782,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {street && <Buses lines={street.bus} />}
       {street && roads && <People roads={roads.lines} crossings={street.crossings} />}
       {roads && <StreetLamps roads={roads.lines} />}
-      {roads && <Festivities roads={roads.lines} />}
+      {roads && <Festivities roads={roads.lines} forced={holiday} />}
       {street && <Funiculars lines={street.funiculars} />}
       {street?.santaJusta && <SantaJusta at={street.santaJusta} />}
       {street && <Bikes lines={street.cycle} />}
@@ -980,6 +982,7 @@ export default function City({
   const stops = useMemo(() => toStops(projects), [projects]);
   const [touring, setTouring] = useState(false);
   const weather = useWeather();
+  const [holiday, setHoliday] = useState<Holiday | null>(null);
   // ?time=HH:MM shows the city at that time of day (for checking things and for the preview images).
   const [timeOverride, setTimeOverride] = useState<number | null>(() => {
     const match = new URLSearchParams(window.location.search).get("time")?.match(/^(\d{1,2}):(\d{2})$/);
@@ -1059,13 +1062,6 @@ export default function City({
   useEffect(() => {
     if (selected >= 0) document.getElementById("intro")?.setAttribute("hidden", "");
   }, [selected]);
-  // Contact has its own page; inside the city it opens as a panel instead.
-  usePageButton("contact-link", true, (event) => {
-    const index = projects.findIndex((p) => p.kind === "contact");
-    if (index < 0) return;
-    event.preventDefault();
-    select(index);
-  });
 
   // Keyboard: + and - zoom, Home shows all the places, arrows slide the map
   // (or step through the tour while it is running).
@@ -1139,6 +1135,7 @@ export default function City({
             spots={spots}
             timeOverride={timeOverride}
             weather={weather}
+            holiday={holiday}
           />
         </Canvas>
       ) : (
@@ -1196,7 +1193,16 @@ export default function City({
         </nav>
       )}
 
-      {live && !SHOT && <SunClock override={timeOverride} onChange={setTimeOverride} weather={describe(weather)} />}
+      {live && !SHOT && <SunClock
+          override={timeOverride}
+          onChange={setTimeOverride}
+          weather={describe(weather)}
+          holiday={holiday}
+          onHoliday={(h, time) => {
+            setHoliday(h);
+            setTimeOverride(time);
+          }}
+        />}
 
       {stop && current && !SHOT && (
         <Panel

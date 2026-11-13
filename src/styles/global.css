@@ -278,6 +278,40 @@ button:focus-visible {
   color: var(--ink);
 }
 
+/* Holidays: a small menu above its button */
+.holidays {
+  position: relative;
+}
+
+.holidays-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--chip);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.controls .holidays-menu button {
+  justify-content: flex-start;
+  height: 28px;
+  white-space: nowrap;
+}
+
+.controls .holidays-menu button[aria-checked="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.controls .holidays > button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* The dial shows it can be dragged. */
 .sun-dial:hover .sun-path-day {
   stroke-width: 2.4;
@@ -402,6 +436,36 @@ button:focus-visible {
 
 .intro-actions a:hover {
   color: var(--accent);
+}
+
+/* A short message at the bottom of the screen ("Email copied") */
+.toast {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: 96px;
+  margin: 0;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--paper);
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  transform: translateX(-50%);
+  animation: toast-in 0.18s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
 }
 
 /* Email button: the main way to get in touch */
@@ -1058,7 +1122,7 @@ button:focus-visible {
   }
 
   .sun-dial {
-    width: 88px;
+    width: 56px;
   }
 
   .sun-dial svg {
@@ -1071,7 +1135,12 @@ button:focus-visible {
   }
 
   .controls .sun-presets button {
-    padding: 0 7px;
+    padding: 0 6px;
+    font-size: 11px;
+  }
+
+  .sun-presets {
+    gap: 3px;
   }
 
   /* Pinch to zoom: no + and - buttons. */

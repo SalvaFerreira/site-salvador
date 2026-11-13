@@ -56,7 +56,14 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
       <nav aria-label="Site">
         {hasCv && <a href={CV_PATH} class="cv-open">CV</a>}
         <button type="button" id="tour-start" hidden>Tour</button>
-        <a href="/contact" id="contact-link">Contact</a>
+        {
+          contact.email && (
+            <button type="button" class="copy-email" data-email={contact.email.replace(/^mailto:/, "")}>
+              Email
+            </button>
+          )
+        }
+        {contact.linkedin && <a href={contact.linkedin} target="_blank" rel="noopener">LinkedIn</a>}
       </nav>
     </header>
 
@@ -159,6 +166,53 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
         // A click on the dimmed backdrop closes it too.
         dialog.addEventListener("click", function (event) {
           if (event.target === dialog) dialog.close();
+        });
+      })();
+    </script>
+
+    <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
+    <script is:inline>
+      // "Email" copies the address and says so; without the clipboard it shows the address instead.
+      (function () {
+        var toast = document.getElementById("toast");
+        var timer;
+        function say(text) {
+          toast.textContent = text;
+          toast.hidden = false;
+          clearTimeout(timer);
+          timer = setTimeout(function () {
+            toast.hidden = true;
+          }, 3200);
+        }
+        function fallback(email) {
+          var field = document.createElement("textarea");
+          field.value = email;
+          field.setAttribute("readonly", "");
+          field.style.position = "fixed";
+          field.style.opacity = "0";
+          document.body.appendChild(field);
+          field.select();
+          var ok = false;
+          try {
+            ok = document.execCommand("copy");
+          } catch (e) {}
+          field.remove();
+          say(ok ? "Email copied: " + email : "Email: " + email);
+        }
+        document.addEventListener("click", function (event) {
+          var button = event.target.closest && event.target.closest(".copy-email");
+          if (!button) return;
+          var email = button.getAttribute("data-email");
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(email).then(
+              function () {
+                say("Email copied: " + email);
+              },
+              function () {
+                fallback(email);
+              },
+            );
+          } else fallback(email);
         });
       })();
     </script>
