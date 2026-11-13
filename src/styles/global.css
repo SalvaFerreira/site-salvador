@@ -252,16 +252,45 @@ button:focus-visible {
   font-size: 12px;
 }
 
-.sun-times {
-  color: var(--muted);
-  font-size: 10.5px;
+/* Day / Sunset / Night / Now under the time */
+.sun-presets {
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
 }
 
-.sun-reset {
-  min-width: 0 !important;
-  height: 26px !important;
-  padding: 0 10px !important;
-  font-size: 12px !important;
+.controls .sun-presets button {
+  min-width: 0;
+  height: 22px;
+  padding: 0 9px;
+  font-size: 11.5px;
+}
+
+.controls .sun-presets button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: none;
+  color: var(--accent);
+}
+
+.controls .sun-presets .sun-reset {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--ink);
+}
+
+/* The dial shows it can be dragged. */
+.sun-dial:hover .sun-path-day {
+  stroke-width: 2.4;
+}
+
+.sun-dial:hover .sun-horizon {
+  stroke: #8a8d94;
+}
+
+.sun-dial:hover .sun-now,
+.sun-dial:hover .moon-now {
+  stroke: var(--accent);
+  stroke-width: 1.5;
 }
 
 /* Colour code of the places, above the map controls */
@@ -1015,6 +1044,34 @@ button:focus-visible {
 
   .panel-open .controls {
     display: none;
+  }
+
+  /* The clock in less room: a shorter dial, the weather left out, smaller buttons. */
+  .controls {
+    gap: 8px;
+    max-width: calc(100% - 16px);
+    box-sizing: border-box;
+  }
+
+  .sun-clock {
+    gap: 8px;
+  }
+
+  .sun-dial {
+    width: 88px;
+  }
+
+  .sun-dial svg {
+    width: 100%;
+    height: auto;
+  }
+
+  .sun-weather {
+    display: none;
+  }
+
+  .controls .sun-presets button {
+    padding: 0 7px;
   }
 
   /* Pinch to zoom: no + and - buttons. */

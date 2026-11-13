@@ -119,7 +119,14 @@ export function SunClock({
   if (!host) return null;
   return createPortal(
     <span className="sun-clock">
-      <span className="sun-dial">
+      <span
+        className="sun-dial"
+        title={
+          day.sunrise !== null && day.sunset !== null
+            ? `Drag to change the time of day · sunrise ${formatMinutes(day.sunrise)}, sunset ${formatMinutes(day.sunset)}`
+            : "Drag to change the time of day"
+        }
+      >
         <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
           <defs>
             <clipPath id="sun-day">
@@ -133,11 +140,11 @@ export function SunClock({
           <path d={path} className="sun-path-day" clipPath="url(#sun-day)" />
           <path d={path} className="sun-path-night" clipPath="url(#sun-night)" />
           {up ? (
-            <circle cx={x} cy={y} r="4" className="sun-now" />
+            <circle cx={x} cy={y} r="5.5" className="sun-now" />
           ) : (
             <g transform={`translate(${x} ${Math.min(H - 5, y)})`}>
-              <circle r="4" className="moon-now" />
-              <circle r="3.2" cx="1.8" cy="-1" className="moon-shade" />
+              <circle r="5.5" className="moon-now" />
+              <circle r="4.4" cx="2.4" cy="-1.4" className="moon-shade" />
             </g>
           )}
         </svg>
@@ -157,17 +164,29 @@ export function SunClock({
           {override === null ? "Lisbon" : "Showing"} <time>{formatMinutes(minutes)}</time>
           {weather && <span className="sun-weather"> · {weather}</span>}
         </span>
-        <span className="sun-times">
-          {day.sunrise !== null && day.sunset !== null
-            ? `sunrise ${formatMinutes(day.sunrise)} · sunset ${formatMinutes(day.sunset)}`
-            : ""}
+        {/* One click to see the city at another time of day. */}
+        <span className="sun-presets" role="group" aria-label="Show the city at">
+          {[
+            ["Day", 13 * 60],
+            ["Sunset", day.sunset !== null ? Math.round(day.sunset / 5) * 5 : 18 * 60],
+            ["Night", 22 * 60 + 30],
+          ].map(([label, at]) => (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={override === at}
+              onClick={() => onChange(at as number)}
+            >
+              {label}
+            </button>
+          ))}
+          {override !== null && (
+            <button type="button" className="sun-reset" onClick={() => onChange(null)}>
+              Now
+            </button>
+          )}
         </span>
       </span>
-      {override !== null && (
-        <button type="button" className="sun-reset" onClick={() => onChange(null)}>
-          Now
-        </button>
-      )}
     </span>,
     host,
   );
