@@ -135,6 +135,15 @@ def slugify(name):
 BRIDGE_TOWERS = []
 
 
+# The 24 parishes of the city of Lisbon; everything else on the map is the suburbs.
+LISBON_FREGUESIAS = {
+    "Ajuda", "Alcântara", "Alvalade", "Areeiro", "Arroios", "Avenidas Novas", "Beato", "Belém",
+    "Benfica", "Campo de Ourique", "Campolide", "Carnide", "Estrela", "Lumiar", "Marvila",
+    "Misericórdia", "Olivais", "Parque das Nações", "Penha de França", "Santa Clara",
+    "Santa Maria Maior", "Santo António", "São Domingos de Benfica", "São Vicente",
+}
+OUTSIDE_MIN_AREA_M2 = 50
+
 # How a roof is drawn (the "roof" byte in the chunk files; see loadChunk in the site).
 ROOF_AUTO, ROOF_FLAT, ROOF_PITCHED, ROOF_PYRAMID, ROOF_DOME = range(5)
 ROOF_SHAPES = {
@@ -528,6 +537,13 @@ def main():
         nearest = nearest[~nearest.index.duplicated()]
         b.loc[missing, "freguesia"] = nearest["name"]
     stats["assignedByNearest"] = int(missing.sum())
+
+    # Outside the city of Lisbon (Odivelas, Loures, Amadora...) the map is mostly seen from
+    # far away: sheds, garages and annexes there are less than a pixel and only cost triangles.
+    outside = ~b["freguesia"].isin(LISBON_FREGUESIAS)
+    tiny = outside & (b.geometry.area < OUTSIDE_MIN_AREA_M2) & (b["kind"] != "part")
+    stats["smallOutsideLisbonDropped"] = int(tiny.sum())
+    b = b[~tiny].reset_index(drop=True)
 
     OUT.mkdir(parents=True, exist_ok=True)
     for old in [f for f in OUT.glob("*.bin") if not f.name.startswith("plan-")]:  # plan-* belong to 05_plan.py
