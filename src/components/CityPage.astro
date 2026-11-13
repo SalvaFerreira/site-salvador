@@ -1,7 +1,8 @@
 ---
 import City from "./City";
 import Head from "./Head.astro";
-import { getAbout, getPlaces, pathOf, SITE_NAME, type Entry } from "../lib/places";
+import { CV_PATH, getAbout, getPlaces, hasCv, pathOf, SITE_NAME, type Entry } from "../lib/places";
+import { CATEGORY_COLOR } from "./City";
 import "../styles/global.css";
 
 interface Props {
@@ -50,7 +51,7 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Per
       <a class="name" href="/">{SITE_NAME}</a>
       <p class="thesis">{about.masthead}</p>
       <nav aria-label="Site">
-        <a href="/list">List</a>
+        {hasCv && <a href={CV_PATH} target="_blank" rel="noopener">CV</a>}
         <button type="button" id="tour-start" hidden>Tour</button>
         <a href="/contact" id="contact-link">Contact</a>
       </nav>
@@ -70,6 +71,12 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Per
     </div>
 
 
+    <ul class="colour-key" aria-label="Colours of the places">
+      <li><span class="place-dot" style={`--dot: ${CATEGORY_COLOR.job}`}></span>Work</li>
+      <li><span class="place-dot" style={`--dot: ${CATEGORY_COLOR.education}`}></span>Education</li>
+      <li><span class="place-dot" style={`--dot: ${CATEGORY_COLOR.personal}`}></span>Personal projects</li>
+    </ul>
+
     <p class="attribution">
       Green spaces, trees and railways: Câmara Municipal de Lisboa · Map data © <a
         href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a
@@ -83,7 +90,7 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Per
       <div class="intro-text" set:html={about.html} />
       <p class="intro-actions">
         <button type="button" id="intro-tour">Start the tour</button>
-        <a href="/list">List</a>
+        {hasCv && <a href={CV_PATH} target="_blank" rel="noopener">CV</a>}
       </p>
     </section>
     <script is:inline>
@@ -118,6 +125,7 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `Per
     <noscript>
       <div class="fallback">
         <img src="/city.jpg" alt="Lisbon seen from above" />
+        <a class="fallback-text" href="/list">Everything on this site as text</a>
       </div>
     </noscript>
 

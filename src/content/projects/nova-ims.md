@@ -16,4 +16,6 @@ links:
     url: "https://www.novaims.unl.pt/"
 ---
 
-<!-- TODO: texto do Salvador -->
+Master's programme on understanding, modelling and managing risk in complex settings, with a focus on the financial sector: credit, market and liquidity risk, financial derivatives, actuarial science, banking and insurance regulation, and machine learning and AI applied to risk management.
+
+<!-- Text based on the programme page: https://novaims.unl.pt/pt/ensino/cursos/pos-graduacoes-e-mestrados/mestrado-em-gestao-de-risco/ -->

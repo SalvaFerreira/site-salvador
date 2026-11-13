@@ -16,4 +16,6 @@ links:
     url: "https://www.iscte-iul.pt/"
 ---
 
-<!-- TODO: texto do Salvador -->
+Three-year bachelor's degree (180 ECTS) run by Iscte's Business School and School of Technology and Architecture. It covers programming in Python, mathematics and statistics, databases and big data, supervised and unsupervised machine learning, deep learning, and data security, ethics and privacy, and ends with an applied project proposed by an outside organisation.
+
+<!-- Text based on the degree page: https://iscte-iul.pt/study/degree/0322 -->

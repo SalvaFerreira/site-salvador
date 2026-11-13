@@ -4,7 +4,7 @@
   --chip: rgba(31, 33, 38, 0.94);
   --paper: #f4efe6;
   --muted: #b3ada1;
-  /* The one colour of Salvador's places (ACCENT in City.tsx). */
+  /* Colour of work places and of the interface (CATEGORY_COLOR.job in City.tsx). */
   --accent: #e8833a;
 }
 
@@ -53,6 +53,7 @@ button:focus-visible {
 /* Interface chips over the map */
 .topbar,
 .controls,
+.colour-key,
 .attribution,
 .stats {
   position: fixed;
@@ -164,6 +165,23 @@ button:focus-visible {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--ink);
+}
+
+/* Colour code of the places, above the map controls */
+.colour-key {
+  left: 14px;
+  bottom: 62px;
+  display: flex;
+  gap: 14px;
+  padding: 7px 12px;
+  list-style: none;
+  color: var(--muted);
+}
+
+.colour-key li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .attribution {
@@ -322,8 +340,8 @@ button:focus-visible {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+  background: var(--dot, var(--accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot, var(--accent)) 28%, transparent);
 }
 
 /* "Lights off": the dot is only a ring */
@@ -608,9 +626,22 @@ button:focus-visible {
   object-fit: cover;
 }
 
+/* Without the 3D city (no WebGL, no JavaScript) the content is on the text page. */
+.fallback-text {
+  position: fixed;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--chip);
+  font-size: 14px;
+}
+
 /* ?shot: nothing but the city */
 .shot .topbar,
 .shot .controls,
+.shot .colour-key,
 .shot .intro,
 .shot .attribution,
 .shot .labels,
@@ -688,6 +719,10 @@ button:focus-visible {
   .topbar nav {
     padding-left: 0;
     border-left: 0;
+  }
+
+  .colour-key {
+    display: none;
   }
 
   .attribution {

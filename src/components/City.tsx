@@ -58,10 +58,19 @@ export interface Stop {
 }
 
 /**
- * The one colour of Salvador's places: buildings, label dots, the journey line.
- * The rest of the city is neutral, like an architect's model. Same as --accent in global.css.
+ * Colour code of Salvador's places: their buildings, the glow around them and
+ * the label dots (the key is in CityPage.astro). Work is also the colour of the
+ * journey line and of the interface (--accent in global.css).
  */
-export const ACCENT = "#e8833a";
+export const CATEGORY_COLOR: Record<Category | "none", string> = {
+  job: "#e8833a",
+  education: "#4f86d9",
+  personal: "#4fa86a",
+  none: "#d9d2c5",
+};
+export const ACCENT = CATEGORY_COLOR.job;
+
+const colourOf = (stop: Stop) => CATEGORY_COLOR[stop.category ?? "none"];
 
 interface Chunk {
   id: string;
@@ -460,7 +469,7 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
       topEdge.current = (document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 54) + 12;
     }
     const top = topEdge.current;
-    const bottom = size.height - 64; // clear of the controls
+    const bottom = size.height - 104; // clear of the controls and the colour key
     const boxes: { x: number; y: number; w: number; h: number }[] = [];
 
     for (const spot of spots.current ?? []) {
@@ -598,11 +607,21 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
     const material = createBuildingMaterial();
     stops.forEach((s) => {
       const slot = s.members[0];
-      if (slot < ACCENT_SLOTS) (material.uniforms.uAccents.value as Color[])[slot].set(ACCENT);
+      if (slot < ACCENT_SLOTS) (material.uniforms.uAccents.value as Color[])[slot].set(colourOf(s));
     });
     return material;
   }, [stops]);
-  const haloMaterial = useMemo(() => createHaloMaterial(ACCENT), []);
+  // One glow per place, in its category's colour.
+  const haloMaterials = useMemo(() => {
+    const byColour = new Map<string, ReturnType<typeof createHaloMaterial>>();
+    const out = new Map<number, ReturnType<typeof createHaloMaterial>>();
+    for (const s of stops) {
+      const colour = colourOf(s);
+      if (!byColour.has(colour)) byColour.set(colour, createHaloMaterial(colour));
+      out.set(s.members[0], byColour.get(colour)!);
+    }
+    return out;
+  }, [stops]);
   // Buildings with the lights off get no glow.
   const dark = useMemo(() => new Set(stops.filter((s) => s.off).map((s) => s.members[0])), [stops]);
   const streetMaterial = useMemo(createStreetMaterial, []);
@@ -702,7 +721,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {places
         .filter((f) => f.radius > 0 && !dark.has(f.index))
         .map((f) => (
-          <mesh key={f.index} position={[f.x, 0.9, f.z]} rotation-x={-Math.PI / 2} material={haloMaterial} renderOrder={3} raycast={noRaycast}>
+          <mesh key={f.index} position={[f.x, 0.9, f.z]} rotation-x={-Math.PI / 2} material={haloMaterials.get(f.index)} renderOrder={3} raycast={noRaycast}>
             <planeGeometry args={[f.radius * 3 + 50, f.radius * 3 + 50]} />
           </mesh>
         ))}
@@ -1006,6 +1025,9 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
         // No 3D: a still of the city. Everything stays reachable through the List.
         <div className="fallback">
           <img src="/city.jpg" alt="Lisbon seen from above" />
+          <a className="fallback-text" href="/list">
+            Everything on this site as text
+          </a>
         </div>
       )}
 
@@ -1019,6 +1041,7 @@ export default function City({ projects, initialPath }: { projects: Project[]; i
                 spots.current[i] = { index: s.members[0], element };
               }}
               className={`place-label${s.off ? " is-off" : ""}`}
+              style={{ "--dot": colourOf(s) } as React.CSSProperties}
               hidden={stop === s}
               onClick={() => select(s.members[0])}
               onPointerOver={() => setHovered(s.members[0])}
