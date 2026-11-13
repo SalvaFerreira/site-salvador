@@ -167,6 +167,98 @@ button:focus-visible {
   color: var(--ink);
 }
 
+/* The clock: today's path of the sun over Lisbon, and now */
+.sun-clock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sun-dial {
+  position: relative;
+  display: block;
+  width: 132px;
+  height: 40px;
+}
+
+.sun-dial svg {
+  display: block;
+  overflow: visible;
+}
+
+.sun-dial input {
+  position: absolute;
+  inset: -4px 0;
+  width: 100%;
+  height: calc(100% + 8px);
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+}
+
+.sun-dial:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.sun-horizon {
+  stroke: #5a5d64;
+  stroke-width: 1;
+}
+
+.sun-path-day {
+  fill: none;
+  stroke: #ffb15c;
+  stroke-width: 1.6;
+}
+
+.sun-path-night {
+  fill: none;
+  stroke: #5f6f9e;
+  stroke-width: 1.2;
+  stroke-dasharray: 2 2.5;
+}
+
+.sun-now {
+  fill: #ffb15c;
+  stroke: #fff3e0;
+  stroke-width: 1;
+  filter: drop-shadow(0 0 3px rgba(255, 177, 92, 0.8));
+}
+
+.moon-now {
+  fill: #e6ebf5;
+}
+
+.moon-shade {
+  fill: var(--chip);
+}
+
+.sun-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.sun-time {
+  color: var(--paper);
+  font-size: 13px;
+}
+
+.sun-times {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.sun-reset {
+  min-width: 0 !important;
+  height: 26px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+}
+
 /* Colour code of the places, above the map controls */
 .colour-key {
   left: 14px;
@@ -883,7 +975,7 @@ button:focus-visible {
     z-index: 10;
     left: 0;
     right: 0;
-    bottom: 58px;
+    bottom: 82px;
     display: flex;
     gap: 6px;
     padding: 0 8px;
@@ -913,7 +1005,7 @@ button:focus-visible {
 
   .controls {
     left: 8px;
-    bottom: 8px;
+    bottom: 30px;
   }
 
   .panel-open .controls {
@@ -926,12 +1018,15 @@ button:focus-visible {
     display: none !important;
   }
 
+  /* One thin line along the very bottom. */
   .attribution {
+    left: 8px;
     right: 8px;
-    bottom: 8px;
-    max-width: 52%;
-    padding: 5px 8px;
+    bottom: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
     font-size: 10px;
+    text-align: center;
   }
 
   .attr-long {

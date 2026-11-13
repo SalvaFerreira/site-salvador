@@ -16,7 +16,7 @@ import {
   type Mesh,
   type OrthographicCamera,
 } from "three";
-import { shared } from "../city/environment";
+import { createFlatMaterial, shared } from "../city/environment";
 import { createGrassMaterial, createShadowMaterial, createTrafficMaterial } from "../city/groundMaterials";
 import { buildRibbons } from "../city/lines";
 import { loadShapes, SHADOW_PER_M, type Manifest } from "../city/loadCity";
@@ -91,6 +91,11 @@ const TREE_TILE_M = 1200;
 /** Ground cover classes drawn as grass: woodland, grass and scrub, pitches. */
 const GREEN_COVER = new Set([0, 1, 2]);
 const grassMaterials = new Map<string, ReturnType<typeof createGrassMaterial>>();
+const flatMaterials = new Map<string, ReturnType<typeof createFlatMaterial>>();
+function flatMaterial(color: string) {
+  if (!flatMaterials.has(color)) flatMaterials.set(color, createFlatMaterial(color));
+  return flatMaterials.get(color)!;
+}
 function grassMaterial(color: string) {
   if (!grassMaterials.has(color)) grassMaterials.set(color, createGrassMaterial(color));
   return grassMaterials.get(color)!;
@@ -307,9 +312,14 @@ export function Parks({ plan, cover }: ParksProps) {
               raycast={noRaycast}
             />
           ) : (
-            <mesh key={cls} geometry={geometry} position-y={0.05 + cls * 0.01} renderOrder={-1.5} raycast={noRaycast}>
-              <meshBasicMaterial color={COVER_COLORS[cls] ?? "#dad4c8"} />
-            </mesh>
+            <mesh
+              key={cls}
+              geometry={geometry}
+              material={flatMaterial(COVER_COLORS[cls] ?? "#dad4c8")}
+              position-y={0.05 + cls * 0.01}
+              renderOrder={-1.5}
+              raycast={noRaycast}
+            />
           ),
         )}
       <mesh geometry={green} material={grassMaterial("#bcd6a2")} position-y={0.15} renderOrder={-1} raycast={noRaycast} />

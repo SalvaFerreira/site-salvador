@@ -2,7 +2,7 @@
 // lines of the Plan layer and the river. All use the `road` attribute made
 // by buildRibbons (x = metres along, y = -1..1 across, z = class), except the river.
 import { Color, DoubleSide, KeepStencilOp, MeshBasicMaterial, NotEqualStencilFunc, ReplaceStencilOp, ShaderMaterial } from "three";
-import { shared } from "./environment";
+import { shadowMaterials, shared, withNight } from "./environment";
 
 /** Half width of the carriageway per road class, in metres. */
 export const STREET_HALF_WIDTH = [6.5, 5, 3.5];
@@ -34,7 +34,8 @@ void main() {
  * when it would be thinner than a pixel.
  */
 export function createStreetMaterial(): ShaderMaterial {
-  return new ShaderMaterial({
+  return withNight(
+    new ShaderMaterial({
     vertexShader: ribbonVertex,
     fragmentShader: /* glsl */ `
 uniform vec3 uAsphalt;
@@ -67,12 +68,15 @@ void main() {
     },
     // Streets overlap at every junction; not writing depth keeps them from fighting.
     depthWrite: false,
-  });
+    }),
+    "street",
+  );
 }
 
 /** Bridge deck with cars moving along it. `direction` is +1 or -1 along the line. */
 export function createTrafficMaterial(): ShaderMaterial {
-  return new ShaderMaterial({
+  return withNight(
+    new ShaderMaterial({
     vertexShader: ribbonVertex,
     fragmentShader: /* glsl */ `
 uniform float uTime;
@@ -113,12 +117,15 @@ void main() {
 }
 `,
     uniforms: { ...shared },
-  });
+    }),
+    "dark",
+  );
 }
 
 /** Railway track: a bed of ballast, sleepers across it and two rails. Class 1 (yards) is paler. */
 export function createTrackMaterial(): ShaderMaterial {
-  return new ShaderMaterial({
+  return withNight(
+    new ShaderMaterial({
     vertexShader: ribbonVertex,
     fragmentShader: /* glsl */ `
 varying vec3 vRoad;
@@ -143,12 +150,15 @@ void main() {
     uniforms: { ...shared },
     transparent: true,
     depthWrite: false,
-  });
+    }),
+    "dark",
+  );
 }
 
 /** Side of the bridge truss: chords top and bottom, diagonals between, open in between. */
 export function createTrussMaterial(): ShaderMaterial {
-  return new ShaderMaterial({
+  return withNight(
+    new ShaderMaterial({
     vertexShader: /* glsl */ `
 varying vec2 vUv;
 
@@ -178,12 +188,15 @@ void main() {
 `,
     uniforms: { uSteel: { value: new Color("#b4705f") } },
     side: DoubleSide,
-  });
+    }),
+    "dark",
+  );
 }
 
 /** Airport: class 0 is a runway (dark, white markings), class 1 a taxiway (grey, yellow line). */
 export function createRunwayMaterial(): ShaderMaterial {
-  return new ShaderMaterial({
+  return withNight(
+    new ShaderMaterial({
     vertexShader: ribbonVertex,
     fragmentShader: /* glsl */ `
 varying vec3 vRoad;
@@ -202,12 +215,15 @@ void main() {
 `,
     uniforms: { ...shared },
     depthWrite: false,
-  });
+    }),
+    "dark",
+  );
 }
 
 /** Soft warm glow on the ground around one of Salvador's buildings. */
 export function createHaloMaterial(color: string): ShaderMaterial {
-  return new ShaderMaterial({
+  return withNight(
+    new ShaderMaterial({
     vertexShader: /* glsl */ `
 varying vec2 vUv;
 
@@ -230,12 +246,15 @@ void main() {
     uniforms: { uColor: { value: new Color(color) } },
     transparent: true,
     depthWrite: false,
-  });
+    }),
+    "glow",
+  );
 }
 
 /** The Tejo: flat blue with slow, faint ripples. */
 export function createRiverMaterial(): ShaderMaterial {
-  return new ShaderMaterial({
+  return withNight(
+    new ShaderMaterial({
     vertexShader: /* glsl */ `
 varying vec3 vWorld;
 
@@ -279,7 +298,9 @@ void main() {
 }
 `,
     uniforms: { ...shared, uWater: { value: new Color("#7ea5c6") } },
-  });
+    }),
+    "dark",
+  );
 }
 
 /**
@@ -287,7 +308,8 @@ void main() {
  * and darker green so large parks do not look like flat paper.
  */
 export function createGrassMaterial(color: string): ShaderMaterial {
-  return new ShaderMaterial({
+  return withNight(
+    new ShaderMaterial({
     vertexShader: groundVertex,
     fragmentShader: /* glsl */ `
 uniform vec3 uColor;
@@ -304,7 +326,9 @@ void main() {
 }
 `,
     uniforms: { uColor: { value: new Color(color) } },
-  });
+    }),
+    "dark",
+  );
 }
 
 /**
@@ -312,7 +336,8 @@ void main() {
  * wave of dark basalt, drawn faintly so it reads as texture, not as a pattern.
  */
 export function createCalcadaMaterial(): ShaderMaterial {
-  return new ShaderMaterial({
+  return withNight(
+    new ShaderMaterial({
     vertexShader: groundVertex,
     fragmentShader: /* glsl */ `
 varying vec2 vGround;
@@ -330,7 +355,9 @@ void main() {
   #include <colorspace_fragment>
 }
 `,
-  });
+    }),
+    "dark",
+  );
 }
 
 /**
@@ -338,7 +365,7 @@ void main() {
  * stencil buffer lets each pixel be darkened only once.
  */
 export function createShadowMaterial(): MeshBasicMaterial {
-  return new MeshBasicMaterial({
+  const material = new MeshBasicMaterial({
     color: "#232c47",
     transparent: true,
     opacity: 0.42,
@@ -351,4 +378,7 @@ export function createShadowMaterial(): MeshBasicMaterial {
     stencilZFail: KeepStencilOp,
     stencilZPass: ReplaceStencilOp,
   });
+  // Faded at night by the daylight in City.tsx.
+  shadowMaterials.add(material);
+  return material;
 }

@@ -1,0 +1,160 @@
+// Light by the real hour in Lisbon: the sun's height sets day, dusk and night
+// for the whole scene, and the clock shows the sun's path through today.
+import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Color, type AmbientLight, type DirectionalLight } from "three";
+import { atLisbonMinutes, formatMinutes, lightFor, lisbonMinutes, sunDay, sunElevation } from "../city/daylight";
+import { shadowMaterials, shared } from "../city/environment";
+
+/** The moment to light the city for: now, or a time of day chosen on the clock (Lisbon minutes). */
+function momentFor(override: number | null): Date {
+  return override === null ? new Date() : atLisbonMinutes(override);
+}
+
+const DAY_AMBIENT = new Color("#ffffff");
+const NIGHT_AMBIENT = new Color("#8796c8");
+const NOON_SUN = new Color("#ffffff");
+const LOW_SUN = new Color("#ffc48a");
+
+/**
+ * The lights of the scene, following the sun. Changes are eased, so moving the
+ * clock fades the city between day and night instead of jumping (unless the
+ * visitor asks for reduced motion).
+ */
+export function Daylight({ override, reducedMotion }: { override: number | null; reducedMotion: boolean }) {
+  const ambient = useRef<AmbientLight>(null);
+  const sun = useRef<DirectionalLight>(null);
+  const target = useRef({ night: 0, dusk: 0 });
+  const since = useRef(Infinity);
+
+  useFrame((_, delta) => {
+    // The sun moves slowly: work out where it is twice a second, or at once when the clock is moved.
+    since.current += delta;
+    if (since.current > 0.5) {
+      since.current = 0;
+      target.current = lightFor(sunElevation(momentFor(override)));
+    }
+    const k = reducedMotion ? 1 : Math.min(1, delta * 2.5);
+    const night = (shared.uNight.value += (target.current.night - shared.uNight.value) * k);
+    const dusk = (shared.uDusk.value += (target.current.dusk - shared.uDusk.value) * k);
+    if (ambient.current) {
+      ambient.current.intensity = 2.1 - 1.35 * night;
+      ambient.current.color.copy(DAY_AMBIENT).lerp(NIGHT_AMBIENT, night);
+    }
+    if (sun.current) {
+      sun.current.intensity = 1.6 * (1 - night);
+      sun.current.color.copy(NOON_SUN).lerp(LOW_SUN, dusk);
+    }
+    for (const m of shadowMaterials) m.opacity = 0.42 * (1 - 0.85 * night);
+  });
+
+  // A new value for the clock is seen at once.
+  useEffect(() => {
+    since.current = Infinity;
+  }, [override]);
+
+  return (
+    <>
+      {/* Light for the few shaded objects: trees, cars, trams, the bridge towers. */}
+      <ambientLight ref={ambient} intensity={2.1} />
+      <directionalLight ref={sun} position={[-0.72, 0.6, 0.34]} intensity={1.6} />
+    </>
+  );
+}
+
+const W = 132;
+const H = 40;
+const HORIZON = 24;
+const toY = (elevation: number) => HORIZON - elevation * (18 / 75);
+
+/**
+ * The clock in the map controls: today's path of the sun over Lisbon, the
+ * horizon, and where the sun is now (a moon while it is below the horizon).
+ * Dragging along it, or the arrow keys, shows the city at another time of day.
+ */
+export function SunClock({ override, onChange }: { override: number | null; onChange: (minutes: number | null) => void }) {
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const element = document.getElementById("clock");
+    if (!element) return;
+    // The page's own clock (for visitors without the 3D city) makes way for this one.
+    element.textContent = "";
+    element.classList.add("sun-clock-host");
+    setHost(element);
+    const timer = window.setInterval(() => setNow(new Date()), 15000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const day = useMemo(() => sunDay(now), [now.toDateString()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const minutes = override ?? lisbonMinutes(now);
+  const elevation = sunElevation(momentFor(override));
+
+  const path = useMemo(
+    () =>
+      day.heights
+        .map((h, i) => `${i ? "L" : "M"}${((i * day.stepMinutes) / 1440) * W},${toY(h).toFixed(2)}`)
+        .join(" "),
+    [day],
+  );
+  const x = (minutes / 1440) * W;
+  const y = toY(elevation);
+  const up = elevation > -0.833;
+
+  if (!host) return null;
+  return createPortal(
+    <span className="sun-clock">
+      <span className="sun-dial">
+        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
+          <defs>
+            <clipPath id="sun-day">
+              <rect x="0" y="0" width={W} height={HORIZON} />
+            </clipPath>
+            <clipPath id="sun-night">
+              <rect x="0" y={HORIZON} width={W} height={H - HORIZON} />
+            </clipPath>
+          </defs>
+          <line x1="0" x2={W} y1={HORIZON} y2={HORIZON} className="sun-horizon" />
+          <path d={path} className="sun-path-day" clipPath="url(#sun-day)" />
+          <path d={path} className="sun-path-night" clipPath="url(#sun-night)" />
+          {up ? (
+            <circle cx={x} cy={y} r="4" className="sun-now" />
+          ) : (
+            <g transform={`translate(${x} ${Math.min(H - 5, y)})`}>
+              <circle r="4" className="moon-now" />
+              <circle r="3.2" cx="1.8" cy="-1" className="moon-shade" />
+            </g>
+          )}
+        </svg>
+        <input
+          type="range"
+          min={0}
+          max={1435}
+          step={5}
+          value={Math.round(minutes / 5) * 5}
+          aria-label="Time of day in the city"
+          aria-valuetext={formatMinutes(minutes)}
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+      </span>
+      <span className="sun-text">
+        <span className="sun-time">
+          {override === null ? "Lisbon" : "Showing"} <time>{formatMinutes(minutes)}</time>
+        </span>
+        <span className="sun-times">
+          {day.sunrise !== null && day.sunset !== null
+            ? `sunrise ${formatMinutes(day.sunrise)} · sunset ${formatMinutes(day.sunset)}`
+            : ""}
+        </span>
+      </span>
+      {override !== null && (
+        <button type="button" className="sun-reset" onClick={() => onChange(null)}>
+          Now
+        </button>
+      )}
+    </span>,
+    host,
+  );
+}

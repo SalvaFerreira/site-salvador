@@ -70,7 +70,7 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
           </svg>
         </button>
       </div>
-      <span class="clock">Lisbon <time id="lisbon-time"></time></span>
+      <span class="clock" id="clock">Lisbon <time id="lisbon-time"></time></span>
     </div>
 
 
@@ -175,7 +175,8 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : abou
         var el = document.getElementById("lisbon-time");
         var format = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Lisbon", hour: "2-digit", minute: "2-digit" });
         function tick() {
-          el.textContent = format.format(new Date());
+          // The 3D city replaces this clock with its own (Daylight.tsx).
+          if (document.contains(el)) el.textContent = format.format(new Date());
         }
         tick();
         setInterval(tick, 15000);

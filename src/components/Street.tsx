@@ -15,7 +15,7 @@ import {
   type OrthographicCamera,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { shared } from "../city/environment";
+import { createFlatMaterial, shared } from "../city/environment";
 import { createCalcadaMaterial, createTrafficMaterial } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 
@@ -189,7 +189,7 @@ function createCrossingGeometry(): BufferGeometry {
 export function Crossings({ data }: { data: StreetData["crossings"] }) {
   const mesh = useRef<InstancedMesh>(null);
   const geometry = useMemo(createCrossingGeometry, []);
-  const material = useMemo(() => new MeshBasicMaterial({ color: "#f7f5f0", depthWrite: false }), []);
+  const material = useMemo(() => createFlatMaterial("#f7f5f0", { depthWrite: false }), []);
   const count = data.x.length;
 
   useLayoutEffect(() => {

@@ -17,7 +17,7 @@ import {
   type Mesh,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { shared } from "../city/environment";
+import { createFlatMaterial, shared } from "../city/environment";
 import { createRunwayMaterial, createShadowMaterial, createTrackMaterial, createTrussMaterial } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { SHADOW_PER_M } from "../city/loadCity";
@@ -658,15 +658,14 @@ function Fleet({ boats, geometry, wakeWidth }: { boats: Boat[]; geometry: Buffer
     w.instanceMatrix.needsUpdate = true;
   });
 
+  const wakeMaterial = useMemo(() => createFlatMaterial("#dfeaf6", { opacity: 0.4, depthWrite: false }), []);
   if (!boats.length) return null;
   return (
     <>
       <instancedMesh ref={hulls} args={[geometry, undefined, boats.length]} raycast={noRaycast} frustumCulled={false}>
         <meshLambertMaterial vertexColors side={DoubleSide} />
       </instancedMesh>
-      <instancedMesh ref={wakes} args={[wake, undefined, boats.length]} raycast={noRaycast} frustumCulled={false}>
-        <meshBasicMaterial color="#dfeaf6" transparent opacity={0.4} depthWrite={false} />
-      </instancedMesh>
+      <instancedMesh ref={wakes} args={[wake, wakeMaterial, boats.length]} raycast={noRaycast} frustumCulled={false} />
     </>
   );
 }

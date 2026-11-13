@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { Color, MOUSE, TOUCH, Vector3, type BufferGeometry, type OrthographicCamera } from "three";
 import type { Line2, OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ACCENT_SLOTS, createBuildingMaterial } from "../city/buildingMaterial";
-import { BACKDROP, shared } from "../city/environment";
+import { BACKDROP, createFlatMaterial, shadowMaterials, shared } from "../city/environment";
 import { createHaloMaterial, createRiverMaterial, createShadowMaterial, createStreetMaterial, STREET_HALF_WIDTH } from "../city/groundMaterials";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { loadChunk, loadManifest, loadShapes, loadShapesByClass, project, type Featured, type Manifest } from "../city/loadCity";
 import { Bridge, loadCover, loadPlan, Parks, type CoverData, type PlanData } from "./Extras";
 import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
+import { Daylight, SunClock } from "./Daylight";
 import Panel from "./Panel";
 import { Buses, Calcada, Crossings, loadStreet, People, TrafficLights, VascoDaGama, type StreetData } from "./Street";
 
@@ -482,7 +483,7 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
     const top = topEdge.current;
     const narrow = size.width <= NARROW_PX;
     const bottom = narrow
-      ? (panelOpen ? size.height * PHONE_PANEL_TOP : size.height - 118) - 8 // clear of the panel, or of the strip of places
+      ? (panelOpen ? size.height * PHONE_PANEL_TOP : size.height - 140) - 8 // clear of the panel, or of the strip of places
       : size.height - 104; // clear of the controls and the colour key
     const boxes: { x: number; y: number; w: number; h: number }[] = [];
 
@@ -613,9 +614,11 @@ interface SceneProps {
   panelOpen: boolean;
   api: RefObject<CameraApi | null>;
   spots: RefObject<LabelSpot[]>;
+  /** Time of day chosen on the clock (Lisbon minutes), or null for now. */
+  timeOverride: number | null;
 }
 
-function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots }: SceneProps) {
+function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots, timeOverride }: SceneProps) {
   const { manifest, land, roads, chunks, places, plan, cover, street } = useCity(stops, projects, onStats);
   const buildingMaterial = useMemo(() => {
     const material = createBuildingMaterial();
@@ -641,6 +644,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
   const streetMaterial = useMemo(createStreetMaterial, []);
   const riverMaterial = useMemo(createRiverMaterial, []);
   const shadowMaterial = useMemo(createShadowMaterial, []);
+  const landMaterial = useMemo(() => createFlatMaterial("#ece8e0"), []);
 
   // The stop the selected project belongs to, by the index of its first member.
   const stopIndex = (index: number) => stops.find((s) => s.members.includes(index))?.members[0] ?? -1;
@@ -673,9 +677,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
   return (
     <>
       <color attach="background" args={[BACKDROP]} />
-      {/* Light for the few shaded objects: trees, cars, tram, bridge towers. */}
-      <ambientLight intensity={2.1} />
-      <directionalLight position={[-0.72, 0.6, 0.34]} intensity={1.6} />
+      <Daylight override={timeOverride} reducedMotion={reducedMotion} />
 
       {/* Tejo: the modelled rectangle; land is drawn on top of it. */}
       {bbox && (
@@ -691,9 +693,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       )}
 
       {land && (
-        <mesh geometry={land} renderOrder={-2} raycast={noRaycast}>
-          <meshBasicMaterial color="#ece8e0" />
-        </mesh>
+        <mesh geometry={land} material={landMaterial} renderOrder={-2} raycast={noRaycast} />
       )}
 
       {plan && <Parks plan={plan} cover={cover?.shapes ?? null} />}
@@ -898,6 +898,11 @@ export default function City({
   const live = useMemo(canRunCity, []);
   const stops = useMemo(() => toStops(projects), [projects]);
   const [touring, setTouring] = useState(false);
+  // ?time=HH:MM shows the city at that time of day (for checking things and for the preview images).
+  const [timeOverride, setTimeOverride] = useState<number | null>(() => {
+    const match = new URLSearchParams(window.location.search).get("time")?.match(/^(\d{1,2}):(\d{2})$/);
+    return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+  });
   const [hovered, setHovered] = useState(-1);
   const showStats = useMemo(() => new URLSearchParams(window.location.search).has("stats"), []);
   // For visitors whose system asks for reduced motion the camera cuts instead of
@@ -1048,6 +1053,7 @@ export default function City({
             panelOpen={stop !== null}
             api={api}
             spots={spots}
+            timeOverride={timeOverride}
           />
         </Canvas>
       ) : (
@@ -1104,6 +1110,8 @@ export default function City({
           ))}
         </nav>
       )}
+
+      {live && !SHOT && <SunClock override={timeOverride} onChange={setTimeOverride} />}
 
       {stop && current && !SHOT && (
         <Panel
