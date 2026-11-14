@@ -11,3 +11,6 @@ __pycache__/
 
 # CV with a phone number: only public/cv-salvador-ferreira.pdf (without phone) is published
 /CV_*.pdf
+
+# Local Claude Code skills (installed with uipro init)
+.claude/
