@@ -599,7 +599,7 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
     const top = topEdge.current;
     const narrow = size.width <= NARROW_PX;
     const bottom = narrow
-      ? (panelOpen ? size.height * PHONE_PANEL_TOP : size.height - 140) - 8 // clear of the panel, or of the strip of places
+      ? (panelOpen ? size.height * PHONE_PANEL_TOP : size.height - 160) - 8 // clear of the panel, or of the strip of places
       : size.height - 104; // clear of the controls and the colour key
     const boxes: { x: number; y: number; w: number; h: number }[] = [];
 

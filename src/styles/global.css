@@ -149,7 +149,7 @@ button:focus-visible {
   border-radius: 999px;
   background: #2d3036;
   color: var(--paper);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .topbar-toggle {
@@ -161,7 +161,7 @@ button:focus-visible {
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
@@ -767,7 +767,8 @@ html:not(.city-ready) .skip-link {
   width: 340px;
   padding: 12px 14px 11px;
   border-radius: 10px;
-  background: var(--chip);
+  /* Opaque, so the labels behind it do not show through. */
+  background: var(--ink);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
   color: var(--paper);
   font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -1197,7 +1198,7 @@ html:not(.city-ready) .skip-link {
   }
 
   .topbar .thesis {
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.4;
   }
 
@@ -1207,7 +1208,7 @@ html:not(.city-ready) .skip-link {
 
   .topbar nav a,
   .topbar nav button {
-    font-size: 12px;
+    font-size: 14px;
   }
 
   /* Labels: the name only; places off screen are in the strip instead. */
@@ -1227,12 +1228,15 @@ html:not(.city-ready) .skip-link {
     z-index: 10;
     left: 0;
     right: 0;
-    bottom: 82px;
+    /* Clear of the clock below it, with its finger-sized buttons. */
+    bottom: 104px;
     display: flex;
     gap: 6px;
-    padding: 0 8px;
+    padding: 0 40px 0 8px;
     overflow-x: auto;
     scrollbar-width: none;
+    /* The right edge fades out: there are more places to slide to. */
+    mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
     -webkit-overflow-scrolling: touch;
   }
 
@@ -1332,6 +1336,26 @@ html:not(.city-ready) .skip-link {
 @media (hover: none) {
   .place-more {
     display: none;
+  }
+}
+
+/* Fingers: every control at least 32px tall. Links in running text get a taller hit area without moving the layout. */
+@media (pointer: coarse) {
+  .controls button {
+    min-width: 36px;
+    height: 36px;
+  }
+
+  .controls .sun-presets button {
+    height: 32px;
+  }
+
+  .topbar nav a,
+  .topbar nav button,
+  .topbar-toggle {
+    display: inline-block;
+    padding-block: 8px;
+    margin-block: -8px;
   }
 }
 
