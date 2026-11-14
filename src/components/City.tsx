@@ -631,6 +631,16 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
       // not when its label is merely nudged to stay inside.
       const away = px < left || px > right || py < top || py > bottom;
 
+      // While a panel is open, only the places in sight keep a label: the rest would
+      // pile up at the edges beside the text being read. Close or Tour reaches them.
+      if (away && panelOpen) {
+        if (el.dataset.at !== "gone") {
+          el.dataset.at = "gone";
+          el.style.visibility = "hidden";
+        }
+        continue;
+      }
+
       // Labels waiting at an edge must not pile up on each other.
       // Step down past each label in the way (up, when there is no room below),
       // until the spot is free.
