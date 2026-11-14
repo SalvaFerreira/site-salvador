@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { CATEGORY_COLOR, type Category, type Project, type Stop } from "./City";
 
 /** A picture, or a short silent video that loops like a GIF (still, with controls, for reduced motion). */
@@ -73,7 +74,9 @@ export default function Panel({ stop, projects, active, onClose, tour, email, li
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  // Straight into the page, not inside the city (a fixed layer of its own), so the
+  // panel stacks above the profile card and the map credits instead of under them.
+  return createPortal(
     <aside className="panel" aria-labelledby="panel-title">
       <div className="panel-bar">
         {tour && (
@@ -161,6 +164,7 @@ export default function Panel({ stop, projects, active, onClose, tour, email, li
           )}
         </p>
       )}
-    </aside>
+    </aside>,
+    document.body,
   );
 }

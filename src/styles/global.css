@@ -6,6 +6,8 @@
   --muted: #b3ada1;
   /* Colour of work places and of the interface (CATEGORY_COLOR.job in City.tsx). */
   --accent: #e8833a;
+  /* Width of the project panel on wide screens (PANEL_WIDTH_PX in City.tsx). */
+  --panel-width: min(100vw, 620px);
 }
 
 html,
@@ -429,6 +431,19 @@ button:focus-visible {
   color: var(--muted);
 }
 
+/* The map credits stay in sight while a panel is open: short, beside it (wide screens) or just above it (phones, below). */
+.panel-open .attribution {
+  right: calc(var(--panel-width) + 14px);
+}
+
+.panel-open .attr-long {
+  display: none;
+}
+
+.panel-open .attr-short {
+  display: inline;
+}
+
 .stats {
   right: 14px;
   top: 14px;
@@ -778,7 +793,7 @@ button:focus-visible {
   right: 0;
   bottom: 0;
   box-sizing: border-box;
-  width: min(100%, calc(65ch + 80px));
+  width: var(--panel-width);
   padding: 28px 40px 48px;
   overflow-y: auto;
   background: #16181c;
@@ -1078,6 +1093,11 @@ button:focus-visible {
     padding: 20px 20px 40px;
     border-radius: 14px 14px 0 0;
     box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.25);
+  }
+
+  .panel-open .attribution {
+    right: 14px;
+    bottom: calc(55% + 6px);
   }
 
   .colour-key {
