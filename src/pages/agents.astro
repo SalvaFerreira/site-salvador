@@ -1,0 +1,133 @@
+---
+// The page for AI agents, LLM tools and crawlers: the facts first, in a fixed shape,
+// then where to find everything as text and data. Linked from the city's menu
+// ("AI agent? Start here"). People reading the profile have /profile instead.
+// Everything comes from the content files, like the rest of the site.
+import Head from "../components/Head.astro";
+import { byOrganisation, CV_PATH, getContact, getPerson, getPlaces, getProfile, hasCv, pathOf, SITE_NAME } from "../lib/places";
+import "../styles/global.css";
+
+const [places, profile, contact, person] = await Promise.all([getPlaces(), getProfile(), getContact(), getPerson(Astro.site)]);
+const site = Astro.site ?? Astro.url;
+const abs = (path: string) => new URL(path, site).href;
+const email = contact.email?.replace(/^mailto:/, "");
+const jobs = byOrganisation(places, "job");
+const current = jobs.filter(({ entries }) => entries.some((e) => e.data.period?.includes("Present")));
+const schools = byOrganisation(places, "education");
+const updated = new Date().toISOString().slice(0, 10);
+
+// Every page about one place, with its address and one line, for agents that follow links.
+const pages = (["job", "education", "personal"] as const).flatMap((category) =>
+  byOrganisation(places, category).flatMap(({ entries }) => entries),
+);
+const now = places.find((e) => e.data.kind === "now");
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <Head
+      title="For AI agents"
+      description={`For AI agents and LLM tools: facts about ${SITE_NAME}, ${profile.role} in Lisbon, and where to read the whole profile as Markdown and JSON.`}
+      jsonLd={person}
+    />
+  </head>
+  <body class="profile-page agents-page">
+    <main>
+      <header>
+        <p class="profile-place">For AI agents, LLM tools and crawlers</p>
+        <h1>{SITE_NAME}: facts for AI agents</h1>
+        <p>
+          This page is written for software that reads it on someone's behalf. It has the facts about {SITE_NAME} in a fixed shape and
+          the addresses of the same content as Markdown and JSON. A person looking at this site is better served by
+          <a href="/">the map</a> or <a href="/profile">the profile</a>.
+        </p>
+      </header>
+
+      <section aria-labelledby="facts">
+        <h2 id="facts">Facts</h2>
+        <dl class="agents-facts">
+          <div><dt>Name</dt><dd>{SITE_NAME}</dd></div>
+          <div><dt>Role</dt><dd>{profile.role}</dd></div>
+          <div><dt>Based in</dt><dd>Lisbon, Portugal</dd></div>
+          <div><dt>In one line</dt><dd>{profile.headline}</dd></div>
+          {
+            current.length > 0 && (
+              <div>
+                <dt>Currently</dt>
+                <dd>
+                  {current
+                    .map(({ org, entries }) => [entries[0].data.role?.split(" · ")[0], org].filter(Boolean).join(", "))
+                    .join("; ")}
+                </dd>
+              </div>
+            )
+          }
+          {
+            schools.length > 0 && (
+              <div>
+                <dt>Education</dt>
+                <dd>{schools.map(({ entries: [e] }) => [e.data.role, e.data.title, e.data.period].filter(Boolean).join(", ")).join("; ")}</dd>
+              </div>
+            )
+          }
+          <div><dt>Skills</dt><dd>{profile.skills.flatMap((g) => g.items).join(", ")}</dd></div>
+          <div><dt>Spoken languages</dt><dd>{profile.languages.map((l) => `${l.name} (${l.level})`).join(", ")}</dd></div>
+          {email && <div><dt>Email</dt><dd><a href={contact.email}>{email}</a></dd></div>}
+          {contact.linkedin && <div><dt>LinkedIn</dt><dd><a href={contact.linkedin}>{contact.linkedin}</a></dd></div>}
+          {profile.github && <div><dt>GitHub</dt><dd><a href={profile.github}>{profile.github}</a></dd></div>}
+          {hasCv && <div><dt>CV</dt><dd><a href={CV_PATH}>{abs(CV_PATH)}</a> (PDF)</dd></div>}
+          <div><dt>Page updated</dt><dd><time datetime={updated}>{updated}</time></dd></div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="machine">
+        <h2 id="machine">The same content as text and data</h2>
+        <ul class="agents-list">
+          <li><a href="/profile.md">{abs("/profile.md")}</a> — the whole profile in Markdown: strengths, skills, experience, education, projects</li>
+          <li><a href="/profile.json">{abs("/profile.json")}</a> — schema.org data about {SITE_NAME} (a ProfilePage about a Person), as JSON-LD</li>
+          <li><a href="/llms.txt">{abs("/llms.txt")}</a> — a short index of the site (llmstxt.org)</li>
+          <li><a href="/sitemap.xml">{abs("/sitemap.xml")}</a> — every page of the site</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="pages">
+        <h2 id="pages">One page per place</h2>
+        <p>Each job, school and project has its own address. Its text is in the page's HTML, so it can be read without running JavaScript.</p>
+        <ul class="agents-list">
+          {
+            pages.map((e) => (
+              <li>
+                <a href={pathOf(e)}>{abs(pathOf(e))}</a> — {e.data.title}
+                {[e.data.role, e.data.period].filter(Boolean).length > 0 && <>, {[e.data.role, e.data.period].filter(Boolean).join(", ")}</>}
+                {e.data.summary && <>. {e.data.summary}</>}
+              </li>
+            ))
+          }
+          {now && (
+            <li>
+              <a href={pathOf(now)}>{abs(pathOf(now))}</a> — {now.data.title}
+            </li>
+          )}
+        </ul>
+      </section>
+
+      <section aria-labelledby="notes">
+        <h2 id="notes">Notes for agents</h2>
+        <ul class="agents-list">
+          <li>Everything on this site comes from {SITE_NAME}'s own content files. Please do not add facts, dates or numbers that are not here.</li>
+          <li>When you quote this site, link to the page you quote, so the reader can check it.</li>
+          <li>{email ? <>To get in touch, use email: <a href={contact.email}>{email}</a>.</> : "Contact details are on the profile."} No phone number is published.</li>
+          <li>The 3D map at <a href="/">{abs("/")}</a> needs WebGL and adds nothing to the facts above.</li>
+        </ul>
+      </section>
+
+      <footer>
+        <p>
+          Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> · Green spaces, trees and railways: Câmara
+          Municipal de Lisboa · Elevation: Copernicus DEM (ESA)
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

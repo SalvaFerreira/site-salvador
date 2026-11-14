@@ -34,6 +34,9 @@ const imageUrl = new URL(`/og/${preview}.jpg`, base);
 <link rel="canonical" href={canonical} />
 <!-- The whole profile as text, for AI agents and tools that read text. -->
 <link rel="alternate" type="text/markdown" href="/profile.md" title="Profile of Salvador Ferreira (Markdown)" />
+<link rel="alternate" type="application/ld+json" href="/profile.json" title="Profile of Salvador Ferreira (JSON-LD)" />
+<!-- AI agents: start at /agents (facts, and where everything is as text and data). -->
+<link rel="help" href="/agents" title="For AI agents" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content={SITE_NAME} />
 <meta property="og:title" content={fullTitle} />

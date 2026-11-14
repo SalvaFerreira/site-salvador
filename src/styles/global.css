@@ -171,6 +171,67 @@ button:focus-visible {
   color: var(--accent);
 }
 
+/* "AI agent? Start here": on the toggle's row, at the right */
+.topbar .topbar-toggle {
+  grid-column: 1;
+}
+
+.agents-link {
+  grid-column: 2;
+  justify-self: end;
+  align-self: end;
+  color: var(--muted);
+  font-size: 13px;
+  text-underline-offset: 3px;
+}
+
+.agents-link:hover {
+  color: var(--accent);
+}
+
+/* The page for AI agents: the facts as a two-column list */
+.agents-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.agents-facts > div {
+  display: grid;
+  grid-template-columns: 9.5em 1fr;
+  gap: 4px 16px;
+}
+
+.agents-facts dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.agents-facts dd {
+  margin: 0;
+  color: var(--paper);
+  overflow-wrap: anywhere;
+}
+
+.agents-list {
+  padding-left: 1.2em;
+}
+
+.agents-list li + li {
+  margin-top: 8px;
+}
+
+.agents-page a {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .agents-facts > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
 .topbar nav {
   grid-row: 1;
   grid-column: 2;
@@ -1352,7 +1413,8 @@ html:not(.city-ready) .skip-link {
 
   .topbar nav a,
   .topbar nav button,
-  .topbar-toggle {
+  .topbar-toggle,
+  .agents-link {
     display: inline-block;
     padding-block: 8px;
     margin-block: -8px;

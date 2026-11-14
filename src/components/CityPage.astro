@@ -92,7 +92,6 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `${p
       </button>
       <nav aria-label="Site">
         {hasCv && <a href={CV_PATH} class="cv-open">CV</a>}
-        <a href="/profile">Profile</a>
         <button type="button" id="tour-start" hidden>Tour</button>
         {
           contact.email && (
@@ -103,6 +102,8 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `${p
         }
         {contact.linkedin && <a href={contact.linkedin} target="_blank" rel="noopener">LinkedIn</a>}
       </nav>
+      {/* For software reading the site on someone's behalf: the facts, and the same content as Markdown and JSON. */}
+      <a class="agents-link" href="/agents">AI agent? Start here</a>
     </header>
 
     {/* After the profile card, so the keyboard meets who this is first, then the places, then the map controls. */}
