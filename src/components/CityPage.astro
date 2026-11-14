@@ -149,6 +149,14 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `${p
       )
     }
 
+    {/* Shown while the city loads (City.tsx fills in the share and hides it); only with JavaScript. */}
+    <p class="loading" id="loading" role="status" hidden>
+      Building Lisbon<span class="loading-share" aria-hidden="true"></span>
+    </p>
+    <script is:inline>
+      if (!document.documentElement.classList.contains("shot")) document.getElementById("loading").hidden = false;
+    </script>
+
     <div class="controls">
       <div class="controls-buttons" role="group" aria-label="Map">
         <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in" hidden>+</button>

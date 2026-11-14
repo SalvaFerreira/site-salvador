@@ -178,7 +178,28 @@ function reach(width: number, height: number, zoom: number): number {
   return ((width / 2 + height / (2 * SIN_ELEVATION)) * Math.SQRT1_2) / zoom;
 }
 
-function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
+/**
+ * The note shown while the neighbourhoods arrive. Written straight into the page,
+ * not through React state, so the scene is not drawn again for every neighbourhood.
+ * The labels wait for the first neighbourhood (class city-ready, see global.css).
+ */
+function showProgress(element: HTMLElement | null, loaded: number, total: number) {
+  if (loaded > 0) document.documentElement.classList.add("city-ready");
+  if (!element) return;
+  const share = element.querySelector(".loading-share");
+  if (share) share.textContent = total > 0 ? ` ${Math.round((loaded / total) * 100)}%` : "";
+  if (loaded >= total) element.hidden = true;
+}
+
+/** The city could not load: say so, and point to the same content as text. */
+function showLoadError(element: HTMLElement | null) {
+  if (!element) return;
+  element.hidden = false;
+  element.classList.add("is-error");
+  element.innerHTML = 'The 3D city could not load. <a href="/profile">Everything is on the Profile page</a>.';
+}
+
+function useCity(stops: Stop[], projects: Project[], onStats: OnStats, progress: RefObject<HTMLElement | null>) {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [land, setLand] = useState<BufferGeometry | null>(null);
   const [roads, setRoads] = useState<{ lines: Polyline[]; geometry: BufferGeometry } | null>(null);
@@ -197,6 +218,7 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
       const m = await loadManifest();
       if (cancelled) return;
       setManifest(m);
+      showProgress(progress.current, 0, m.chunks.length);
       loadShapes(m.land.file, m.land.unitsPerMetre).then((g) => !cancelled && setLand(g));
       loadLines(m.roads.file, m.roads.unitsPerMetre).then(
         (lines) => !cancelled && setRoads({ lines, geometry: buildRibbons(lines, STREET_HALF_WIDTH, 0.4) }),
@@ -254,6 +276,7 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
           setPlaces((prev) => [...prev.filter((q) => q.index !== f.index), place]);
         }
         if (i === 0) onStats({ firstChunkMs: Math.round(performance.now() - start) });
+        showProgress(progress.current, i + 1, order.length);
         // Let the browser draw a frame between neighbourhoods.
         await new Promise((resolve) => requestAnimationFrame(resolve));
       }
@@ -261,12 +284,15 @@ function useCity(stops: Stop[], projects: Project[], onStats: OnStats) {
       for (const t of targets) {
         if (!best.has(t.index)) console.warn(`No building found near the coordinates of "${projects[t.index].title}"`);
       }
-    })().catch((error) => console.error("City failed to load", error));
+    })().catch((error) => {
+      console.error("City failed to load", error);
+      if (!cancelled) showLoadError(progress.current);
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [stops, projects, onStats]);
+  }, [stops, projects, onStats, progress]);
 
   return { manifest, land, roads, chunks, places, plan, cover, street, grounds };
 }
@@ -711,10 +737,12 @@ interface SceneProps {
   weather: Weather;
   /** A holiday switched on from the clock, or null for the real date. */
   holiday: Holiday | null;
+  /** The loading note, updated as the neighbourhoods arrive. */
+  progress: RefObject<HTMLElement | null>;
 }
 
-function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots, timeOverride, weather, holiday }: SceneProps) {
-  const { manifest, land, roads, chunks, places, plan, cover, street, grounds } = useCity(stops, projects, onStats);
+function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots, timeOverride, weather, holiday, progress }: SceneProps) {
+  const { manifest, land, roads, chunks, places, plan, cover, street, grounds } = useCity(stops, projects, onStats, progress);
   const buildingMaterial = useMemo(() => {
     const material = createBuildingMaterial();
     stops.forEach((s) => {
@@ -1039,6 +1067,12 @@ export default function City({
   }, []);
   const api = useRef<CameraApi | null>(null);
   const spots = useRef<LabelSpot[]>([]);
+  // The loading note is in the page's own HTML (CityPage.astro), so it shows before this script runs.
+  const progress = useRef<HTMLElement | null>(live && !SHOT ? document.getElementById("loading") : null);
+  useEffect(() => {
+    const note = document.getElementById("loading");
+    if (note && (!live || SHOT)) note.hidden = true;
+  }, [live]);
 
   const [selected, setSelected] = useState(() => projects.findIndex((p) => p.path === initialPath));
   useEffect(() => {
@@ -1176,6 +1210,7 @@ export default function City({
             timeOverride={timeOverride}
             weather={weather}
             holiday={holiday}
+            progress={progress}
           />
         </Canvas>
       ) : (
