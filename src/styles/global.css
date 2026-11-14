@@ -855,7 +855,9 @@ html:not(.city-ready) .skip-link {
   bottom: 0;
   box-sizing: border-box;
   width: var(--panel-width);
-  padding: 28px 40px 48px;
+  --panel-pad-x: 40px;
+  /* No padding on top: the bar with Close supplies it and stays at the top while the text scrolls. */
+  padding: 0 var(--panel-pad-x) 48px;
   overflow-y: auto;
   background: #16181c;
   color: #ddd6c9;
@@ -864,13 +866,19 @@ html:not(.city-ready) .skip-link {
   box-shadow: -6px 0 24px rgba(0, 0, 0, 0.25);
 }
 
+/* Close (and the tour) stay at the top of the panel while its text scrolls. */
 .panel-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-bottom: 22px;
-  font-size: 12px;
+  margin: 0 calc(-1 * var(--panel-pad-x)) 14px;
+  padding: 16px var(--panel-pad-x) 12px;
+  background: #16181c;
+  font-size: 13px;
 }
 
 .panel-tour {
@@ -881,7 +889,8 @@ html:not(.city-ready) .skip-link {
 }
 
 .panel-tour button {
-  padding: 4px 10px;
+  min-height: 32px;
+  padding: 4px 14px;
   border: 1px solid #44474e;
   border-radius: 999px;
   background: none;
@@ -901,17 +910,23 @@ html:not(.city-ready) .skip-link {
 }
 
 .panel-close {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
   margin-left: auto;
-  padding: 0;
-  border: 0;
+  padding: 0 16px;
+  border: 1px solid #55585f;
+  border-radius: 999px;
   background: none;
-  color: var(--muted);
+  color: var(--paper);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
+  text-decoration: none;
   cursor: pointer;
 }
 
 .panel-close:hover {
+  border-color: var(--accent);
   color: var(--accent);
 }
 
@@ -1151,7 +1166,8 @@ html:not(.city-ready) .skip-link {
   .panel {
     top: 45%;
     width: 100%;
-    padding: 20px 20px 40px;
+    --panel-pad-x: 20px;
+    padding: 0 var(--panel-pad-x) 40px;
     border-radius: 14px 14px 0 0;
     box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.25);
   }
