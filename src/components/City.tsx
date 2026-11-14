@@ -1224,7 +1224,8 @@ export default function City({
       )}
 
       {live && (
-        <div className="labels">
+        // Target of the "Skip to the places" link (CityPage.astro).
+        <div className="labels" id="places" role="group" aria-label="Places on the map" tabIndex={-1}>
           {labelled.map((s, i) => (
             <button
               key={s.key}

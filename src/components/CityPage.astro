@@ -51,7 +51,8 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `${p
     </script>
   </head>
   <body class="city-page">
-    <City client:only="react" projects={projects} initialPath={entry ? pathOf(entry) : undefined} email={contact.email} linkedin={contact.linkedin} homeTitle={homeTitle} />
+    {/* Keyboard: straight to the places, past the profile card. */}
+    <a class="skip-link" href="#places">Skip to the places</a>
 
     <header class="topbar" id="topbar">
       {
@@ -103,6 +104,9 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `${p
         {contact.linkedin && <a href={contact.linkedin} target="_blank" rel="noopener">LinkedIn</a>}
       </nav>
     </header>
+
+    {/* After the profile card, so the keyboard meets who this is first, then the places, then the map controls. */}
+    <City client:only="react" projects={projects} initialPath={entry ? pathOf(entry) : undefined} email={contact.email} linkedin={contact.linkedin} homeTitle={homeTitle} />
 
     {
       /* A project's own address: its text is in the page itself, for readers that do not
