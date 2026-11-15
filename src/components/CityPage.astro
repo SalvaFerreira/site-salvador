@@ -2,7 +2,6 @@
 import City from "./City";
 import Head from "./Head.astro";
 import { CV_IMAGE, CV_PATH, getContact, getHomeTitle, getPerson, getPlaces, getProfile, htmlOf, PORTRAIT, hasCv, pathOf, SITE_NAME, type Entry } from "../lib/places";
-import { CATEGORY_COLOR } from "./City";
 import "../styles/global.css";
 
 interface Props {
@@ -175,12 +174,7 @@ const description = entry ? `${entry.data.title} — ${entry.data.place}` : `${p
       <span class="clock" id="clock">Lisbon <time id="lisbon-time"></time></span>
     </div>
 
-
-    <ul class="colour-key" aria-label="Colours of the places">
-      <li><span class="place-dot" style={`--dot: ${CATEGORY_COLOR.job}`}></span>Work</li>
-      <li><span class="place-dot" style={`--dot: ${CATEGORY_COLOR.education}`}></span>Education</li>
-      <li><span class="place-dot" style={`--dot: ${CATEGORY_COLOR.personal}`}></span>Personal projects</li>
-    </ul>
+    {/* The colour key, which is also the filter of the places, is drawn by City.tsx. */}
 
     <p class="attribution">
       <span class="attr-long">Green spaces, trees and railways: Câmara Municipal de Lisboa · Elevation: Copernicus DEM (ESA) · Map data</span> © <a

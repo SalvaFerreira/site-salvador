@@ -82,6 +82,18 @@ export const CATEGORY_COLOR: Record<Category | "none", string> = {
 };
 export const ACCENT = CATEGORY_COLOR.job;
 
+/** Which places are shown: all of them, or one category (the filter in the colour key). */
+export type Filter = Category | "all";
+const FILTERS: { value: Filter; name: string }[] = [
+  { value: "all", name: "All" },
+  { value: "job", name: "Work" },
+  { value: "education", name: "Education" },
+  { value: "personal", name: "Personal projects" },
+];
+/** A filtered-out building keeps only a hint of its colour. */
+const FADED = "#d8d2c6";
+const fade = (colour: string) => "#" + new Color(colour).lerp(new Color(FADED), 0.8).getHexString();
+
 const colourOf = (stop: Stop) => CATEGORY_COLOR[stop.category ?? "none"];
 
 interface Chunk {
@@ -371,7 +383,7 @@ function Clock({ onStats }: { onStats: OnStats }) {
 
 interface RigProps {
   place: Place | null;
-  /** Every place on the map, in scene coordinates: the opening view shows them all. */
+  /** The places shown (all, or those the filter lets through), in scene coordinates: the opening view frames them. */
   overview: Vector3[];
   reducedMotion: boolean;
   /** The part of the map the camera may show: [minX, minY, maxX, maxY] in map metres. */
@@ -409,7 +421,7 @@ function CameraRig({ place, overview, reducedMotion, view, panelOpen, api }: Rig
   // The opening view (and the home button): all of Salvador's places on screen
   // at once, clear of the top bar and the controls, so nobody has to move the map.
   const home = useMemo(() => {
-    if (overview.length < 2) return { target: BAIXA.clone(), zoom: Math.max(minZoom, startZoom()) };
+    if (overview.length === 0) return { target: BAIXA.clone(), zoom: Math.max(minZoom, startZoom()) };
     let minR = Infinity, maxR = -Infinity, minU = Infinity, maxU = -Infinity;
     for (const p of overview) {
       const r = p.dot(SCREEN_RIGHT);
@@ -421,12 +433,14 @@ function CameraRig({ place, overview, reducedMotion, view, panelOpen, api }: Rig
     const sides = Math.min(60, size.width * 0.04);
     // Labels stand above their spots, so a little room under the top bar (now the profile card) is enough.
     const top = (document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 100) + 30;
-    const bottom = 70;
+    // Phones keep the filter, the strip of places and the clock at the bottom.
+    const bottom = size.width <= NARROW_PX ? 210 : 70;
     const zoom = Math.min(
       MAX_ZOOM,
       Math.max(
         minZoom,
-        Math.min((size.width - 2 * sides) / Math.max(1, maxR - minR), (size.height - top - bottom) / Math.max(1, (maxU - minU) * SIN_ELEVATION)),
+        // At least a few hundred metres across, so a single place (a filter can leave one) is not shown at full zoom.
+        Math.min((size.width - 2 * sides) / Math.max(400, maxR - minR), (size.height - top - bottom) / Math.max(400 * SIN_ELEVATION, (maxU - minU) * SIN_ELEVATION)),
       ),
     );
     // Centre of the places, then moved so they sit in the middle of the free part of the screen.
@@ -530,6 +544,18 @@ function CameraRig({ place, overview, reducedMotion, view, panelOpen, api }: Rig
     };
   }, [api, controls, camera, flyTo, home]);
 
+  // A new filter frames its places (but not while a panel is open, nor on first paint).
+  const framed = useRef(overview);
+  useEffect(() => {
+    if (framed.current === overview) return;
+    const before = framed.current;
+    framed.current = overview;
+    // The first time the places arrive is the opening view, set above.
+    if (before.length === 0 || panelOpen || !controls) return;
+    flyTo(home.target, home.zoom, 1.2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overview]);
+
   // Dragging and wheel zoom stop at the edge of the map.
   useEffect(() => {
     if (!controls) return;
@@ -599,7 +625,7 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
     const top = topEdge.current;
     const narrow = size.width <= NARROW_PX;
     const bottom = narrow
-      ? (panelOpen ? size.height * PHONE_PANEL_TOP : size.height - 160) - 8 // clear of the panel, or of the strip of places
+      ? (panelOpen ? size.height * PHONE_PANEL_TOP : size.height - 200) - 8 // clear of the panel, or of the strip of places and the filter
       : size.height - 104; // clear of the controls and the colour key
     const boxes: { x: number; y: number; w: number; h: number }[] = [];
 
@@ -749,18 +775,21 @@ interface SceneProps {
   holiday: Holiday | null;
   /** The loading note, updated as the neighbourhoods arrive. */
   progress: RefObject<HTMLElement | null>;
+  /** The stops the filter lets through. */
+  shown: Stop[];
 }
 
-function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots, timeOverride, weather, holiday, progress }: SceneProps) {
+function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedMotion, onStats, panelOpen, api, spots, timeOverride, weather, holiday, progress, shown }: SceneProps) {
   const { manifest, land, roads, chunks, places, plan, cover, street, grounds } = useCity(stops, projects, onStats, progress);
-  const buildingMaterial = useMemo(() => {
-    const material = createBuildingMaterial();
+  const buildingMaterial = useMemo(createBuildingMaterial, []);
+  // Places left out by the filter: no glow, no click, and only a hint of their colour.
+  const visible = useMemo(() => new Set(shown.map((s) => s.members[0])), [shown]);
+  useEffect(() => {
     stops.forEach((s) => {
       const slot = s.members[0];
-      if (slot < ACCENT_SLOTS) (material.uniforms.uAccents.value as Color[])[slot].set(colourOf(s));
+      if (slot < ACCENT_SLOTS) (buildingMaterial.uniforms.uAccents.value as Color[])[slot].set(visible.has(slot) ? colourOf(s) : fade(colourOf(s)));
     });
-    return material;
-  }, [stops]);
+  }, [stops, visible, buildingMaterial]);
   // One glow per place, in its category's colour.
   const haloMaterials = useMemo(() => {
     const byColour = new Map<string, ReturnType<typeof createHaloMaterial>>();
@@ -798,14 +827,14 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
 
   const overview = useMemo(() => {
     if (!manifest) return [];
-    return stops
+    return shown
       .filter((s) => s.onMap)
       .map((s) => {
         const p = projects[s.members[0]];
         const [x, y] = project(manifest, p.coordinates[0], p.coordinates[1]);
         return new Vector3(x, 0, -y);
       });
-  }, [manifest, stops, projects]);
+  }, [manifest, shown, projects]);
 
   const place = places.find((f) => f.index === selectedSpot) ?? null;
   const onMap = stops.some((s) => s.onMap && s.members[0] === selectedSpot);
@@ -886,7 +915,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
 
       {/* A soft glow on the ground around each of Salvador's lit buildings. */}
       {places
-        .filter((f) => f.radius > 0 && !dark.has(f.index))
+        .filter((f) => f.radius > 0 && !dark.has(f.index) && visible.has(f.index))
         .map((f) => (
           <mesh key={f.index} position={[f.x, 0.9, f.z]} rotation-x={-Math.PI / 2} material={haloMaterials.get(f.index)} renderOrder={3} raycast={noRaycast}>
             <planeGeometry args={[f.radius * 3 + 50, f.radius * 3 + 50]} />
@@ -896,7 +925,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {/* The merged city is not raycast (a million triangles); each featured
           building gets an invisible box to click. Its label is a real button, outside the canvas. */}
       {places
-        .filter((f) => f.radius > 0)
+        .filter((f) => f.radius > 0 && visible.has(f.index))
         .map((f) => (
           <mesh
             key={f.index}
@@ -926,7 +955,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {manifest && !waiting && (
         <CameraRig place={place} overview={overview} reducedMotion={reducedMotion} view={manifest.view} panelOpen={panelOpen} api={api} />
       )}
-      <Journey stops={stops} places={places} />
+      <Journey stops={shown} places={places} />
       <LabelPositioner spots={spots} places={places} panelOpen={panelOpen} />
 
       <Clock onStats={onStats} />
@@ -1053,7 +1082,10 @@ export default function City({
   homeTitle?: string;
 }) {
   const live = useMemo(canRunCity, []);
-  const stops = useMemo(() => toStops(projects), [projects]);
+  const allStops = useMemo(() => toStops(projects), [projects]);
+  const [filter, setFilter] = useState<Filter>("all");
+  // Everything that lists places (labels, strip, Tour, journey line) sees only the chosen category.
+  const stops = useMemo(() => (filter === "all" ? allStops : allStops.filter((s) => s.category === filter)), [allStops, filter]);
   const [touring, setTouring] = useState(false);
   const weather = useWeather();
   const [holiday, setHoliday] = useState<Holiday | null>(null);
@@ -1097,7 +1129,8 @@ export default function City({
   }, [projects]);
   const current = selected >= 0 ? projects[selected] : null;
   const stopAt = stops.findIndex((s) => s.members.includes(selected));
-  const stop = stopAt >= 0 ? stops[stopAt] : null;
+  // A place opened from a link stays open even when the filter leaves it out.
+  const stop = allStops.find((s) => s.members.includes(selected)) ?? null;
 
   // Every project has its own address; moving around the city never reloads the page.
   const select = useCallback(
@@ -1136,6 +1169,12 @@ export default function City({
   useEffect(() => {
     document.title = current ? `${current.title} — Salvador Ferreira` : homeTitle;
   }, [current, homeTitle]);
+
+  // The camera frames the chosen places itself (CameraRig).
+  const chooseFilter = (value: Filter) => {
+    setTouring(false);
+    setFilter(value);
+  };
 
   usePageButton("zoom-in", live, () => api.current?.zoomBy(1.6));
   usePageButton("zoom-out", live, () => api.current?.zoomBy(1 / 1.6));
@@ -1207,7 +1246,8 @@ export default function City({
         >
           <Scene
             projects={projects}
-            stops={stops}
+            stops={allStops}
+            shown={stops}
             selected={selected}
             onSelect={select}
             hovered={hovered}
@@ -1277,6 +1317,25 @@ export default function City({
             </button>
           ))}
         </nav>
+      )}
+
+      {!SHOT && (
+        // The colour key is also the filter: one category, or all of them.
+        <div className="colour-key" role="group" aria-label="Show places">
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              className="filter-option"
+              aria-pressed={filter === f.value}
+              style={f.value === "all" ? undefined : ({ "--dot": CATEGORY_COLOR[f.value] } as React.CSSProperties)}
+              onClick={() => chooseFilter(f.value)}
+            >
+              {f.value !== "all" && <span className="place-dot" aria-hidden="true" />}
+              {f.name}
+            </button>
+          ))}
+        </div>
       )}
 
       {live && !SHOT && <SunClock

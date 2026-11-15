@@ -478,10 +478,37 @@ button:focus-visible {
   color: var(--muted);
 }
 
-.colour-key li {
+/* The colour key is also the filter: the chosen category is in full colour, the others muted. */
+.colour-key {
+  gap: 4px;
+  padding: 4px;
+}
+
+.filter-option {
   display: flex;
   align-items: center;
   gap: 7px;
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.filter-option:hover {
+  color: var(--paper);
+}
+
+.filter-option[aria-pressed="true"] {
+  background: rgba(244, 239, 230, 0.12);
+  color: var(--paper);
+}
+
+.filter-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .attribution {
@@ -1239,7 +1266,8 @@ html:not(.city-ready) .skip-link {
     bottom: calc(55% + 6px);
   }
 
-  .colour-key {
+  /* The panel covers the bottom of the screen. */
+  .panel-open .colour-key {
     display: none;
   }
 }
@@ -1299,6 +1327,21 @@ html:not(.city-ready) .skip-link {
     /* The right edge fades out: there are more places to slide to. */
     mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* Phones: the filter sits just above the strip of places. */
+  .colour-key {
+    left: 8px;
+    bottom: 152px;
+    max-width: calc(100% - 16px);
+    box-sizing: border-box;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .filter-option {
+    flex: none;
+    white-space: nowrap;
   }
 
   .place-strip::-webkit-scrollbar {
@@ -1409,6 +1452,10 @@ html:not(.city-ready) .skip-link {
 
   .controls .sun-presets button {
     height: 32px;
+  }
+
+  .filter-option {
+    min-height: 32px;
   }
 
   .topbar nav a,
