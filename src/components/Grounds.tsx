@@ -1,12 +1,14 @@
 // Parks, campuses and the airport up close (data from scripts/08_grounds.py):
 // footpaths through the green spaces and campuses, pedestrian squares in
 // calçada, hedges (the box parterre of Parque Eduardo VII), flagpoles, planes
-// parked at the airport's stands and the jet bridges that reach them.
+// parked at the airport's stands and the jet bridges that reach them; the lakes,
+// ponds and fountains of the gardens, most with a stone edge.
 import { useLayoutEffect, useMemo, useRef } from "react";
 import earcut from "earcut";
-import { BoxGeometry, BufferAttribute, BufferGeometry, InstancedMesh, Matrix4, Quaternion, Vector3 } from "three";
+import { BoxGeometry, BufferAttribute, BufferGeometry, Color, InstancedMesh, Matrix4, Quaternion, Vector3 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { createCalcadaMaterial, createPathMaterial } from "../city/groundMaterials";
+import { createCalcadaMaterial, createPathMaterial, createRiverMaterial } from "../city/groundMaterials";
+import { createFlatMaterial } from "../city/environment";
 import { buildRibbons, loadLines, type Polyline } from "../city/lines";
 import { randomFrom } from "./Extras";
 import { createPlaneGeometry } from "./Life";
@@ -41,6 +43,8 @@ export interface GroundsData {
   flagpoles: number[][];
   /** [x, y, heading]: where the nose stops, and the way it points. */
   stands: number[][];
+  /** [edged 1/0, outline, holes...]: lakes, ponds and fountains. */
+  ponds: (number | number[][])[][];
 }
 
 export async function loadGrounds(): Promise<GroundsData> {
@@ -53,6 +57,7 @@ export async function loadGrounds(): Promise<GroundsData> {
     squares: index.squares,
     flagpoles: index.flagpoles,
     stands: index.stands,
+    ponds: index.ponds ?? [],
   };
 }
 
@@ -91,6 +96,7 @@ export function Grounds({ data }: { data: GroundsData }) {
       {/* Under the streets (renderOrder 1), over the grass. */}
       {paths && <mesh geometry={paths} material={pathMaterial} renderOrder={0.5} raycast={noRaycast} frustumCulled={false} />}
       {data.squares.length > 0 && <Squares squares={data.squares} />}
+      {data.ponds.length > 0 && <Ponds ponds={data.ponds} />}
       {hedges && (
         <mesh geometry={hedges} raycast={noRaycast} frustumCulled={false}>
           <meshLambertMaterial color="#4a6e36" />
@@ -129,6 +135,53 @@ function Squares({ squares }: { squares: number[][][][] }) {
     return m;
   }, []);
   return <mesh geometry={geometry} material={material} renderOrder={1.5} raycast={noRaycast} frustumCulled={false} />;
+}
+
+/** Garden water: a little greener than the river, and calm. */
+const POND_WATER = "#7aa3ae";
+const POND_EDGE = "#e4dccb";
+/** Half the width of the stone edge round a pond or fountain. */
+const POND_EDGE_HALF_M = 0.45;
+
+/** Lakes, ponds and fountains, over the grass and the squares, with a stone edge on the formal ones. */
+function Ponds({ ponds }: { ponds: (number | number[][])[][] }) {
+  const { water, edges } = useMemo(() => {
+    const positions: number[] = [];
+    const indices: number[] = [];
+    const outlines: Polyline[] = [];
+    for (const [edged, ...rest] of ponds) {
+      const rings = rest as number[][][];
+      const flat: number[] = [];
+      const holes: number[] = [];
+      for (const [k, ring] of rings.entries()) {
+        if (k > 0) holes.push(flat.length / 2);
+        for (const [x, y] of ring) flat.push(x, y);
+        if (edged) outlines.push({ points: [...ring.flat(), ring[0][0], ring[0][1]], cls: 0 });
+      }
+      const base = positions.length / 3;
+      for (let i = 0; i < flat.length; i += 2) positions.push(flat[i], 0.35, -flat[i + 1]);
+      for (const i of earcut(flat, holes.length ? holes : undefined)) indices.push(base + i);
+    }
+    const g = new BufferGeometry();
+    g.setAttribute("position", new BufferAttribute(new Float32Array(positions), 3));
+    g.setIndex(indices);
+    g.computeBoundingSphere();
+    return { water: g, edges: outlines.length ? buildRibbons(outlines, [POND_EDGE_HALF_M], 0.4) : null };
+  }, [ponds]);
+  const waterMaterial = useMemo(() => {
+    const m = createRiverMaterial();
+    m.uniforms.uWater.value = new Color(POND_WATER);
+    m.depthWrite = false;
+    return m;
+  }, []);
+  const edgeMaterial = useMemo(() => createFlatMaterial(POND_EDGE, { depthWrite: false }), []);
+  return (
+    <>
+      {/* Over the squares (1.5), under the shadows (2). */}
+      <mesh geometry={water} material={waterMaterial} renderOrder={1.6} raycast={noRaycast} />
+      {edges && <mesh geometry={edges} material={edgeMaterial} renderOrder={1.7} raycast={noRaycast} />}
+    </>
+  );
 }
 
 /** A pole and its flag: Portugal's green and red where it is the national flag, white otherwise. */

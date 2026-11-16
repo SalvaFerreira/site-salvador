@@ -6,7 +6,8 @@ Input:  OpenStreetMap via Overpass (cached in data/raw/), data/raw/_land.wkb,
         public/data/manifest.json (02_process.py) and public/data/cover.json (06_cover.py)
 Output: public/data/grounds.bin   lines (LXR1, 1 m units), class per line:
                                   0 footpath, 1 wide path or track, 2 steps, 3 hedge, 4 jet bridge
-        public/data/grounds.json  index, pedestrian squares (outline, then holes), flagpoles, aircraft stands
+        public/data/grounds.json  index, pedestrian squares (outline, then holes), flagpoles, aircraft stands,
+                                  ponds: lakes, ponds and fountains in the gardens ([edged 1/0, outline, holes...])
 
 Data (c) OpenStreetMap contributors, ODbL.
 """
@@ -103,6 +104,40 @@ def pedestrian_squares(view, land):
     return out
 
 
+# Small water on land: the lakes of the Gulbenkian, the Estufa Fria, the Estrela, Campo Grande...
+# (the river, the docks and anything over 50 000 m2 are cut out of the land by 02_process.py).
+POND_MIN_M2 = 25
+POND_MAX_M2 = 50_000
+NOT_PONDS = {"wastewater", "harbour"}
+# Water left as it lies, without a stone edge: lakes and streams.
+UNEDGED = {"lake", "river", "stream", "canal"}
+
+
+def ponds(view, land):
+    """Open water in the gardens. Covered tanks, sewage works and dry retention basins are left out;
+    water mapped a level down stays (the Gulbenkian's lake is tagged layer -1, below the garden)."""
+    out, seen = [], set()
+    for el in P.load("water"):
+        tags = el.get("tags", {})
+        if (el["type"], el["id"]) in seen:
+            continue
+        seen.add((el["type"], el["id"]))
+        if (tags.get("water") in NOT_PONDS or tags.get("covered") == "yes" or tags.get("intermittent") == "yes"
+                or tags.get("location") in ("underground", "indoor") or tags.get("indoor") == "yes"):
+            continue
+        for poly in P.polygons_of(P.element_polygon(el)):
+            if not POND_MIN_M2 <= poly.area < POND_MAX_M2 or not land.contains(poly.representative_point()):
+                continue
+            poly = poly.intersection(view).simplify(0.4)
+            for p in P.polygons_of(poly):
+                if p.area < POND_MIN_M2:
+                    continue
+                rings = [p.exterior] + [r for r in p.interiors if Polygon(r).area > 4]
+                edged = 0 if tags.get("water") in UNEDGED or p.area > 5000 else 1
+                out.append([edged] + [[[round(x, 1), round(y, 1)] for x, y in r.coords[:-1]] for r in rings])
+    return out
+
+
 def flagpoles(view):
     """[x, y, height, Portuguese flag 1/0] for each flagpole."""
     out = []
@@ -184,18 +219,19 @@ def main():
     info = L.write_lines(OUT / "grounds.bin", lines, classes, 1)
     squares = pedestrian_squares(view, land)
     index = {
-        "attribution": "Paths, squares, hedges, flagpoles and aircraft stands (c) OpenStreetMap contributors, ODbL",
+        "attribution": "Paths, squares, hedges, flagpoles, aircraft stands and ponds (c) OpenStreetMap contributors, ODbL",
         "file": info["file"],
         "unitsPerMetre": info["unitsPerMetre"],
         "squares": squares,
         "flagpoles": flagpoles(view),
         "stands": stand_points,
+        "ponds": ponds(view, land),
     }
     text = json.dumps(index, separators=(",", ":"), ensure_ascii=False)
     (OUT / "grounds.json").write_text(text, encoding="utf-8")
     km = lambda cls: round(sum(l.length for l, c in zip(lines, classes) if c == cls) / 1000, 1)
     print(f"grounds.bin: {info['lines']} lines, {info['bytes'] / 1e3:.0f} kB; km: paths {km(PATH)}, wide {km(WIDE)}, steps {km(STEPS)}, hedges {km(HEDGE)}, jet bridges {len(bridge_lines)}")
-    print(f"grounds.json: {len(squares)} squares, {len(index['flagpoles'])} flagpoles, {len(stand_points)} stands, {len(text.encode()) / 1e3:.0f} kB")
+    print(f"grounds.json: {len(squares)} squares, {len(index['flagpoles'])} flagpoles, {len(stand_points)} stands, {len(index['ponds'])} ponds, {len(text.encode()) / 1e3:.0f} kB")
     total = sum(f.stat().st_size for f in OUT.iterdir() if f.is_file())
     print(f"all city data: {total / 1e6:.2f} MB")
 
