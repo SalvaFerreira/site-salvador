@@ -194,6 +194,10 @@ def read_buildings():
             key = (el["type"], el["id"])
             if key in seen:
                 continue
+            # The tile files list multipolygon buildings without their members; the full
+            # copy comes later, from building_relations*. Only that one counts as seen.
+            if el["type"] == "relation" and not any(m.get("geometry") for m in el.get("members", [])):
+                continue
             seen.add(key)
             tags = el.get("tags", {})
             if tags.get("location") == "underground" or str(tags.get("layer", "")).startswith("-"):
