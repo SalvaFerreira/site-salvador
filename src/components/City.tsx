@@ -12,6 +12,7 @@ import { Bridge, loadCover, loadPlan, Parks, type CoverData, type PlanData } fro
 import { Airport, Boats, Cars, Plane, Tracks, Trains, Trams } from "./Life";
 import { Daylight, SunClock } from "./Daylight";
 import { Landmarks } from "./Landmarks";
+import { Stadiums } from "./Stadiums";
 import { Festivities, type Holiday } from "./Festivities";
 import { describe, useWeather, WeatherEffects, type Weather } from "./Weather";
 import { Bikes, CruiseShip, Funiculars, Gulls, Monuments, SantaJusta, Terraces, Viewpoints } from "./MoreLife";
@@ -888,6 +889,7 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {street && <Terraces points={street.terraces} />}
       {street && <Monuments items={street.monuments} />}
       {street && <Landmarks places={street.landmarks} />}
+      <Stadiums />
       {manifest && <CruiseShip manifest={manifest} />}
       {plan && <Gulls centres={gullCentres} />}
       {street && <VascoDaGama bridge={street.bridge} />}

@@ -4,6 +4,7 @@ Input:  data/raw/*.json (from 01_download.py)
 Output: public/data/<freguesia>.bin   building footprints + heights, one per neighbourhood
         public/data/land.bin          land polygons (everything else is river)
         public/data/roads.bin         street centre lines, for the street lighting
+        public/data/stadiums.json     stands of the football grounds and lines of the pitches (stadiums.py)
         public/data/manifest.json     index of the above, bridge geometry, statistics
 
 Coordinates are metres relative to the scene origin (config.ORIGIN_*),
@@ -51,6 +52,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import linemerge, polygonize, unary_union
 
 import height_model as H
+import stadiums as S
 from config import (
     CRS_METRIC, EAST, EXTRA_STRIPS, LEVEL_HEIGHT_M, MIN_AREA_M2, NORTH, ORIGIN_LAT, ORIGIN_LON,
     OUT, RAW, SIMPLIFY_M, SOUTH, TILES, WEST,
@@ -227,6 +229,8 @@ def read_buildings():
                     "levels_tag": number(tags.get("building:levels")),
                     "min_tag": min_tag,
                     "roof": ROOF_SHAPES.get(tags.get("roof:shape", ""), ROOF_AUTO),
+                    # Seats for spectators: drawn as stands if they face a pitch (stadiums.py).
+                    "stand": tags.get("building") in S.STAND_KINDS or tags.get("leisure") == "bleachers",
                 })
     return gpd.GeoDataFrame(rows, geometry="geometry")
 
@@ -534,6 +538,10 @@ def main():
     verts_before = int(b.geometry.count_coordinates().sum())
     b["geometry"] = b.geometry.map(simplify)
     stats["verticesBeforeSimplify"] = verts_before
+
+    print("Stadiums")
+    b, grounds, stats["stadiums"] = S.split(sys.modules[__name__], b)
+    (OUT / "stadiums.json").write_text(json.dumps(grounds, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     print("Neighbourhoods")
     f = read_freguesias()
