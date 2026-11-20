@@ -22,5 +22,3 @@ stack: ["Expo", "React Native", "TypeScript", "Supabase", "PostgreSQL", "TanStac
 ---
 
 **In active development.** Cited Life is not launched yet, and anything described here may still change before launch.
-
-TODO: texto do Salvador
