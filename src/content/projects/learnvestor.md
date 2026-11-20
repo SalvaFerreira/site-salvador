@@ -1,7 +1,7 @@
 ---
 title: "LearnVestor"
 # One line at the top of the panel and the Profile page.
-summary: "A free app that teaches investing through a virtual portfolio and lessons."
+summary: "A free app that teaches investing through a virtual portfolio and lessons. My first attempt at building something with AI; on standby for now."
 label: "LearnVestor"
 category: "personal"
 place: "Marvila"
@@ -29,3 +29,5 @@ links:
 Learn investing through gamification with LearnVestor, a free app with no account needed. Track your virtual portfolio, complete lessons, and build financial literacy.
 
 <!-- The paragraph above is the description from the LearnVestor website. -->
+
+LearnVestor was my first attempt at using AI to build something real. The project is on standby for now.

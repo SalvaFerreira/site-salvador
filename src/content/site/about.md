@@ -4,7 +4,7 @@
 # Chosen from the CV and the projects for an AI Engineer role; Salvador: edit freely.
 role: "AI Engineer"
 # One line, under the role.
-headline: "I build LLM agents and data pipelines that take manual work off teams."
+headline: "I build LLM agents and data pipelines that take manual work off teams. I see myself as a builder: I love building and creating things."
 # Each strength: a title, a short proof for the card in the city, and the full proof.
 strengths:
   - title: "AI agents in production"
