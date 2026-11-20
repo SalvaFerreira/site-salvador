@@ -12,7 +12,7 @@ period: "Jun 2025 – Present"
 # this is one of the buildings on it. Replace with the exact [longitude, latitude] of number 11.
 coordinates: [-9.129815, 38.744369]
 order: 1
-# Start: orders the journey line and the Tour.
+# Start: orders the Tour.
 date: "2025-06"
 # Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
 images:

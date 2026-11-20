@@ -1,8 +1,8 @@
-import { Line, OrbitControls } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Color, MOUSE, TOUCH, Vector3, type BufferGeometry, type OrthographicCamera } from "three";
-import type { Line2, OrbitControls as OrbitControlsImpl } from "three-stdlib";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ACCENT_SLOTS, createBuildingMaterial } from "../city/buildingMaterial";
 import { BACKDROP, createFlatMaterial, quality, shadowMaterials, shared } from "../city/environment";
 import { createHaloMaterial, createRiverMaterial, createShadowMaterial, createStreetMaterial, STREET_HALF_WIDTH } from "../city/groundMaterials";
@@ -60,7 +60,7 @@ export interface Stop {
   label: string;
   /** What it is for Salvador, after the name on the label: role and year. */
   line: string;
-  /** Start of the earliest member, if known: orders the journey and the Tour. */
+  /** Start of the earliest member, if known: orders the Tour. */
   date?: string;
   category?: Category;
   off: boolean;
@@ -73,7 +73,7 @@ export interface Stop {
 /**
  * Colour code of Salvador's places: their buildings, the glow around them and
  * the label dots (the key is in CityPage.astro). Work is also the colour of the
- * journey line and of the interface (--accent in global.css).
+ * interface (--accent in global.css).
  */
 export const CATEGORY_COLOR: Record<Category | "none", string> = {
   job: "#e8833a",
@@ -699,64 +699,6 @@ function LabelPositioner({ spots, places, panelOpen }: { spots: RefObject<LabelS
   return null;
 }
 
-/**
- * A thin dashed line from place to place in the order they happened, arcing
- * over the roofs. Drawn over everything, so it can be followed across the city.
- */
-function Journey({ stops, places }: { stops: Stop[]; places: Place[] }) {
-  const points = useMemo(() => {
-    const along = stops
-      .filter((s) => s.date && s.onMap)
-      .map((s) => places.find((p) => p.index === s.members[0]))
-      .filter((p): p is Place => !!p);
-    if (along.length < 2) return null;
-    const out: Vector3[] = [];
-    for (let i = 0; i < along.length - 1; i++) {
-      const a = new Vector3(along[i].x, along[i].height, along[i].z);
-      const b = new Vector3(along[i + 1].x, along[i + 1].height, along[i + 1].z);
-      const lift = Math.min(260, a.distanceTo(b) * 0.18);
-      const mid = a.clone().lerp(b, 0.5);
-      mid.y = Math.max(a.y, b.y) + lift;
-      for (let k = i === 0 ? 0 : 1; k <= 32; k++) {
-        const t = k / 32;
-        // Quadratic curve through the two places, highest halfway.
-        out.push(
-          new Vector3()
-            .addScaledVector(a, (1 - t) ** 2)
-            .addScaledVector(mid, 2 * (1 - t) * t)
-            .addScaledVector(b, t * t),
-        );
-      }
-    }
-    return out;
-  }, [stops, places]);
-
-  // Dashes keep the same length on screen at every zoom (zoom is pixels per metre).
-  const line = useRef<Line2 | null>(null);
-  useFrame(({ camera }) => {
-    if (line.current) line.current.material.dashScale = (camera as OrthographicCamera).zoom;
-  });
-
-  if (!points) return null;
-  return (
-    <Line
-      ref={line}
-      points={points}
-      color={ACCENT}
-      lineWidth={2.6}
-      dashed
-      dashSize={9}
-      gapSize={6}
-      transparent
-      opacity={0.9}
-      depthTest={false}
-      depthWrite={false}
-      renderOrder={10}
-      raycast={noRaycast}
-    />
-  );
-}
-
 interface SceneProps {
   projects: Project[];
   stops: Stop[];
@@ -957,7 +899,6 @@ function Scene({ projects, stops, selected, onSelect, hovered, onHover, reducedM
       {manifest && !waiting && (
         <CameraRig place={place} overview={overview} reducedMotion={reducedMotion} view={manifest.view} panelOpen={panelOpen} api={api} />
       )}
-      <Journey stops={shown} places={places} />
       <LabelPositioner spots={spots} places={places} panelOpen={panelOpen} />
 
       <Clock onStats={onStats} />
@@ -1086,7 +1027,7 @@ export default function City({
   const live = useMemo(canRunCity, []);
   const allStops = useMemo(() => toStops(projects), [projects]);
   const [filter, setFilter] = useState<Filter>("all");
-  // Everything that lists places (labels, strip, Tour, journey line) sees only the chosen category.
+  // Everything that lists places (labels, strip, Tour) sees only the chosen category.
   const stops = useMemo(() => (filter === "all" ? allStops : allStops.filter((s) => s.category === filter)), [allStops, filter]);
   const [touring, setTouring] = useState(false);
   const weather = useWeather();

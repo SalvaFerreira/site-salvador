@@ -10,7 +10,7 @@ period: "Jan 2025 – May 2025"
 # Passeio das Garças 12.
 coordinates: [-9.095851, 38.781125]
 order: 5
-# Start: orders the journey line and the Tour.
+# Start: orders the Tour.
 date: "2025-01"
 # Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
 images: []

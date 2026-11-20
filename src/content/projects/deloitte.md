@@ -10,7 +10,7 @@ period: "Sep 2026 – Present"
 # Deloitte Hub, Avenida Engenheiro Duarte Pacheco 7 (Amoreiras), as placed in OpenStreetMap.
 coordinates: [-9.1571308, 38.724672]
 order: 3
-# Start: orders the journey line and the Tour.
+# Start: orders the Tour.
 date: "2026-09"
 stack: ["Python", "SQL", "dbt", "T-SQL", "SSIS", "LLM agents"]
 links:

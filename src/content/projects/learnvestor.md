@@ -9,7 +9,7 @@ role: "Personal Project - Financial Literacy App"
 # The RTP office building, Avenida Marechal Gomes da Costa 37.
 coordinates: [-9.11799, 38.759094]
 order: 8
-# Start: orders the journey line and the Tour. The app repository was created in Aug 2025.
+# Start: orders the Tour. The app repository was created in Aug 2025.
 date: "2025-08"
 # Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
 images: []

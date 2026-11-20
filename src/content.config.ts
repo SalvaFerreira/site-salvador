@@ -25,7 +25,7 @@ const projects = defineCollection({
     coordinates: z.tuple([z.number(), z.number()]),
     /** Reading order in the List; places with the same date keep this order. */
     order: z.number(),
-    /** When it started. Orders the journey line and the Tour; without a date a place comes last. */
+    /** When it started. Orders the Tour; without a date a place comes last. */
     date: z.coerce.date().optional(),
     /**
      * Screenshots, photos or short videos for the panel, in public/ (e.g. "/images/correntes-1.jpg").

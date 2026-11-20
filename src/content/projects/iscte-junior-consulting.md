@@ -12,7 +12,7 @@ period: "Oct 2023 – Jan 2025"
 # Iscte campus, Avenida das Forças Armadas (approximate building).
 coordinates: [-9.15275, 38.74790]
 order: 4
-# Start: orders the journey line and the Tour.
+# Start: orders the Tour.
 date: "2023-10"
 # Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
 images: []

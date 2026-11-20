@@ -13,7 +13,7 @@ tagline: "In development"
 # a science museum, for an app built on evidence.
 coordinates: [-9.150684, 38.717931]
 order: 8.5
-# Start: orders the journey line and the Tour.
+# Start: orders the Tour.
 date: "2026-11"
 # Screenshots for the panel, saved in public/images/: [{ src: "/images/name.jpg", alt: "what it shows" }]
 images: []
