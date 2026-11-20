@@ -2,11 +2,11 @@
 title: "Cited Life"
 # One line at the top of the panel and the Profile page.
 # Proposal taken from the app's own specification (Cited/CLAUDE.md): Salvador, edit freely.
-summary: "A habits app where every recommendation is backed by real studies and reviewed by a person, fitted to your budget. In active development."
+summary: "An evidence-based companion, not just a habit tracker: every recommendation is backed by real studies and reviewed by a person, fitted to your budget. In active development."
 label: "Cited Life"
 category: "personal"
 place: "Príncipe Real"
-role: "Personal project - Evidence-based habits app (in development)"
+role: "Personal project - Evidence-based companion app (in development)"
 # Shorter role for the map label.
 tagline: "In development"
 # Museu Nacional de História Natural e da Ciência, Rua da Escola Politécnica 56-58:
