@@ -15,19 +15,23 @@ coordinates: [-9.150684, 38.717931]
 order: 8.5
 # Start: orders the Tour.
 date: "2026-11"
-# Taken from the app running locally, with a throwaway account. The recommendations shown
-# are the app's example content, not reviewed evidence yet; fictitious sources are kept out of frame.
+# Sections of the Cited Life website (Desktop/website-citedlife), taken at 1440 px wide.
+# The budget section is left out on purpose.
 images:
-  - src: "/images/cited-life-discover.webp"
-    alt: "Two screens of the app. Left, Discover in light mode: habits grouped by area (Sleep, Nutrition, Exercise), each marked plus to start or minus to quit, with an evidence grade from A to C. Right, a habit in dark mode: 'Keep a consistent bedtime', grade A, strong evidence, the person's plan 'When it's 10:30 pm, I'll start winding down', a one-sentence summary with a highlighted citation mark, and how to do it."
-  - src: "/images/cited-life-tracking.webp"
-    alt: "Two screens of the app. Left, Today in light mode: three habits to tick off, each with its plan, one done. Right, Habits in dark mode: the same three habits with a row of seven days and a count such as '5 of the last 7 days'."
+  - src: "/images/cited-life-site-hero.webp"
+    alt: "The top of the Cited Life website: 'Small habits. Real science. No rush.' in heavy black type, next to the logo drawn large, Pebble, a blue rounded shape with two eyes, peeking over three bars in blue, orange and green, with a yellow sun and a speech bubble saying 'ah.'"
+  - src: "/images/cited-life-site-habit-apart.webp"
+    alt: "A dark section titled 'Every habit, broken down into why it works': four cards take a morning light walk apart, from the habit to daylight reaching your eyes, your body clock setting the day and winding down feeling easier at night, each drawn with simple flat shapes."
+  - src: "/images/cited-life-site-science.webp"
+    alt: "The section 'Every habit shows its homework': the evidence grades drawn as four columns of falling height, A strong, B moderate, C limited and D early, from solid black to a dashed outline."
+  - src: "/images/cited-life-site-pebble.webp"
+    alt: "The section 'A little friend who reads the papers for you': Pebble, the blue mascot, wearing an orange triangle hat, a yellow sun, a green bag and a yellow scarf, next to three promises: never sad, never smaller when you miss a day; shapes you earn stay forever; after a quiet day, it suggests the smallest next step."
 # No tools listed: this page is about the product, not how it is built.
 stack: []
 # links: none yet; the app is not launched and its repository is private.
 ---
 
-**In active development.** Cited Life has not launched yet. The screenshots show example content while the real evidence is being reviewed.
+**In active development.** Cited Life has not launched yet.
 
 - **Every habit shows its source.** Each recommendation links to the published studies behind it, with a short summary in plain English and a grade from A (strong evidence) to D (early research). The grade comes from fixed rules, the same way every time, never from an AI, and a person reviews everything before it reaches the app.
 - **Fewer, better habits.** Six areas of life (sleep, nutrition, exercise, mind and stress, focus and screens, home) with a short list in each: the habits with the strongest evidence, not a catalogue.
