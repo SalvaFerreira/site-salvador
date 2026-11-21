@@ -6,6 +6,7 @@ summary: "An app for people who take their quality of life seriously: it suggest
 label: "Cited Life"
 category: "personal"
 place: "Príncipe Real"
+logo: "/logos/cited-life.svg"
 role: "Personal project - Evidence-based companion app (in development)"
 # Shorter role for the map label.
 tagline: "In development"

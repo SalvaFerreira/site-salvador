@@ -5,6 +5,7 @@ summary: "A free app that teaches investing through a virtual portfolio and less
 label: "LearnVestor"
 category: "personal"
 place: "Marvila"
+logo: "/logos/learnvestor.webp"
 role: "Personal Project - Financial Literacy App"
 # The RTP office building, Avenida Marechal Gomes da Costa 37.
 coordinates: [-9.11799, 38.759094]

@@ -6,6 +6,7 @@ label: "Correntes de Memória"
 group: "Correntes de Memória"
 category: "job"
 place: "Areeiro"
+logo: "/logos/correntes.webp"
 role: "AI Engineer & Financial Controller"
 period: "Jun 2025 – Present"
 # Rua Margarida de Abreu. The street is right, but the map data has no door numbers:

@@ -106,9 +106,12 @@ export default function Panel({ stop, projects, active, onClose, tour, email, li
         )}
         {first.place}
       </p>
-      <h1 id="panel-title" ref={heading} tabIndex={-1}>
-        {shared ? stop.label : first.title}
-      </h1>
+      <div className="panel-heading">
+        {stop.logo && <img className="panel-logo" src={stop.logo} alt="" width={44} height={44} decoding="async" />}
+        <h1 id="panel-title" ref={heading} tabIndex={-1}>
+          {shared ? stop.label : first.title}
+        </h1>
+      </div>
 
       {projects.map((project) => (
         <section key={project.slug} id={`project-${project.slug}`} className="panel-project">

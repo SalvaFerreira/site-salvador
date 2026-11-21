@@ -16,6 +16,11 @@ const projects = defineCollection({
     /** Colour code on the map. */
     category: z.enum(["job", "education", "personal"]).optional(),
     place: z.string(),
+    /**
+     * Logo of the company, school or project, in public/logos/ (e.g. "/logos/deloitte.webp").
+     * Shown on the map label instead of the dot, and next to the title in the panel.
+     */
+    logo: z.string().optional(),
     /** Position held or degree, and when: shown under the title. */
     role: z.string().optional(),
     /** Shorter version of the role for the map label, when the role is long. */

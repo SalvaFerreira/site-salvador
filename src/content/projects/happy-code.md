@@ -5,6 +5,7 @@ summary: "Taught Python, SQL and Excel to learners aged 3 to 17."
 label: "Happy Code"
 category: "job"
 place: "Parque das Nações"
+logo: "/logos/happy-code.webp"
 role: "Programming Instructor"
 period: "Jan 2025 – May 2025"
 # Passeio das Garças 12.

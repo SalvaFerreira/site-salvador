@@ -5,6 +5,7 @@ summary: "Bachelor's in Data Science: programming, statistics, databases, machin
 label: "Iscte"
 category: "education"
 place: "Cidade Universitária"
+logo: "/logos/iscte.webp"
 role: "BSc in Data Science"
 period: "2023 – 2026"
 # Iscte campus, Avenida das Forças Armadas (approximate building).

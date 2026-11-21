@@ -5,6 +5,7 @@ summary: "50+ databases, dashboards and reports that turned raw data into recomm
 label: "Iscte Junior Consulting"
 category: "job"
 place: "Cidade Universitária"
+logo: "/logos/iscte-junior-consulting.webp"
 role: "Analytics Consultant & Vice-President of the Fiscal Council"
 # Shorter role for the map label.
 tagline: "Analytics Consultant"

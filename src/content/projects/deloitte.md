@@ -5,6 +5,7 @@ summary: "Building an AI agent that migrates legacy data warehouses to dbt, in a
 label: "Deloitte"
 category: "job"
 place: "Amoreiras"
+logo: "/logos/deloitte.webp"
 role: "AI & Data Analyst · Technology & Transformation (Financial Services)"
 period: "Sep 2026 – Present"
 # Deloitte Hub, Avenida Engenheiro Duarte Pacheco 7 (Amoreiras), as placed in OpenStreetMap.

@@ -5,6 +5,7 @@ summary: "Master's in Risk Management, including machine learning and AI applied
 label: "NOVA IMS"
 category: "education"
 place: "Campolide"
+logo: "/logos/nova-ims.webp"
 role: "MSc in Risk Management"
 period: "2026 – 2028 (expected)"
 # NOVA IMS, Campus de Campolide: its main building, next to where OpenStreetMap places the school.

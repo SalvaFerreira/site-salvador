@@ -36,6 +36,8 @@ export interface Project {
   group?: string;
   category?: Category;
   place: string;
+  /** Logo in public/logos/, shown on the label and in the panel. */
+  logo?: string;
   role?: string;
   /** Short role for the map label. */
   tagline?: string;
@@ -63,6 +65,8 @@ export interface Stop {
   /** Start of the earliest member, if known: orders the Tour. */
   date?: string;
   category?: Category;
+  /** Logo of the first member that has one. */
+  logo?: string;
   off: boolean;
   /** Indices into the projects list, in reading order. */
   members: number[];
@@ -922,6 +926,19 @@ function plainText(html: string): string {
 }
 
 /**
+ * The mark at the start of a label or chip: the place's logo in a light badge
+ * ringed in its category colour, or the coloured dot when it has no logo.
+ */
+export function PlaceMark({ logo }: { logo?: string }) {
+  if (!logo) return <span className="place-dot" aria-hidden="true" />;
+  return (
+    <span className="place-logo" aria-hidden="true">
+      <img src={logo} alt="" width={20} height={20} loading="lazy" decoding="async" />
+    </span>
+  );
+}
+
+/**
  * What a label shows when the pointer rests on it (or it has keyboard focus):
  * where and when, the start of the text from the content file, the stack.
  * Nothing here is written for the label; it all comes from the frontmatter and body.
@@ -975,6 +992,7 @@ function toStops(projects: Project[]): Stop[] {
     if (existing) {
       existing.members.push(index);
       if (p.date && (!existing.date || p.date < existing.date)) existing.date = p.date;
+      existing.logo ??= p.logo;
     } else {
       stops.push({
         key,
@@ -982,6 +1000,7 @@ function toStops(projects: Project[]): Stop[] {
         line: labelLine(p),
         date: p.date,
         category: p.category,
+        logo: p.logo,
         off: p.lights === "off",
         members: [index],
         onMap: p.kind !== "contact",
@@ -1235,7 +1254,7 @@ export default function City({
               onFocus={() => setHovered(s.members[0])}
               onBlur={() => setHovered(-1)}
             >
-              <span className="place-dot" aria-hidden="true" />
+              <PlaceMark logo={s.logo} />
               <span className="place-name">{s.label}</span>
               <span className="place-what">{s.line}</span>
               <span className="place-arrow" aria-hidden="true" />
@@ -1255,7 +1274,7 @@ export default function City({
               style={{ "--dot": colourOf(s) } as React.CSSProperties}
               onClick={() => select(s.members[0])}
             >
-              <span className="place-dot" aria-hidden="true" />
+              <PlaceMark logo={s.logo} />
               {s.label}
             </button>
           ))}

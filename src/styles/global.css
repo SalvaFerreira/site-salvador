@@ -837,6 +837,37 @@ html:not(.city-ready) .skip-link {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot, var(--accent)) 28%, transparent);
 }
 
+/* A place's logo instead of the dot: a light badge ringed in the category colour */
+.place-logo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin: -3px 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--dot, var(--accent));
+  overflow: hidden;
+}
+
+.place-logo img {
+  display: block;
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+}
+
+/* "Lights off": the badge is greyed and ringed in grey, like the hollow dot */
+.is-off .place-logo {
+  box-shadow: 0 0 0 2px #9a968e;
+}
+
+.is-off .place-logo img {
+  filter: grayscale(1);
+  opacity: 0.75;
+}
+
 /* "Lights off": the dot is only a ring */
 .is-off .place-dot {
   background: none;
@@ -1071,6 +1102,27 @@ html:not(.city-ready) .skip-link {
 
 .panel-body li + li {
   margin-top: 0.5em;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 8px;
+}
+
+.panel-logo {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 6px;
+  border-radius: 10px;
+  background: #fff;
+  object-fit: contain;
+}
+
+.panel .panel-heading h1 {
+  margin: 0;
 }
 
 .panel h1 {
