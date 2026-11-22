@@ -1,8 +1,8 @@
 ---
 title: "Cited Life"
 # One line at the top of the panel and the Profile page.
-# Drafted from the app's own specification (Cited/CLAUDE.md) and the app itself: Salvador, edit freely.
-summary: "An app for people who take their quality of life seriously: it suggests habits to start or to quit, each one backed by published research and checked by a person. In active development."
+# Drafted from the Cited Life website (Desktop/website-citedlife): Salvador, edit freely.
+summary: "A quality-of-life app for people who take feeling good seriously: small habits backed by research, each one showing its evidence, with no streaks and no guilt. In active development."
 label: "Cited Life"
 category: "personal"
 place: "Príncipe Real"
@@ -17,16 +17,16 @@ order: 8.5
 # Start: orders the Tour.
 date: "2026-11"
 # Sections of the Cited Life website (Desktop/website-citedlife), taken at 1440 px wide.
-# The budget section is left out on purpose.
+# The budget and pricing sections are left out on purpose.
 images:
-  - src: "/images/cited-life-site-hero.webp"
-    alt: "The top of the Cited Life website: 'Small habits. Real science. No rush.' in heavy black type, next to the logo drawn large, Pebble, a blue rounded shape with two eyes, peeking over three bars in blue, orange and green, with a yellow sun and a speech bubble saying 'ah.'"
-  - src: "/images/cited-life-site-habit-apart.webp"
-    alt: "A dark section titled 'Every habit, broken down into why it works': four cards take a morning light walk apart, from the habit to daylight reaching your eyes, your body clock setting the day and winding down feeling easier at night, each drawn with simple flat shapes."
+  - src: "/images/cited-life-site-areas.webp"
+    alt: "The section 'Five things to feel better about. Two ways to act.': five coloured cards for the goals, each with its own white shape: Sleep (blue, a circle), Move (orange, a triangle), Eat (green, a square), Mind (pink, a dome) and Focus (teal, a target). Below, two outlined cards for the ways to act: Quit (a yellow dash) and Space (a violet corner)."
   - src: "/images/cited-life-site-science.webp"
     alt: "The section 'Every habit shows its homework': the evidence grades drawn as four columns of falling height, A strong, B moderate, C limited and D early, from solid black to a dashed outline."
+  - src: "/images/cited-life-site-space.webp"
+    alt: "The section 'Some things you only do once', on lavender: a card with the violet corner shape, '2 of 5 set up' and five boxes, two of them filled."
   - src: "/images/cited-life-site-pebble.webp"
-    alt: "The section 'A little friend who reads the papers for you': Pebble, the blue mascot, wearing an orange triangle hat, a yellow sun, a green bag and a yellow scarf, next to three promises: never sad, never smaller when you miss a day; shapes you earn stay forever; after a quiet day, it suggests the smallest next step."
+    alt: "The section 'A little friend that keeps you company': Pebble, a round blue companion with happy eyes, wearing all seven shapes, next to four promises. Below, a row of seven small Pebbles, each wearing one area's shape: Sleep, Move, Eat, Mind, Focus, Quit and Space."
 # No tools listed: this page is about the product, not how it is built.
 stack: []
 # links: none yet; the app is not launched and its repository is private.
@@ -34,15 +34,15 @@ stack: []
 
 **In active development.** Cited Life has not launched yet.
 
-- **Every habit shows its source.** Each recommendation links to the published studies behind it, with a short summary in plain English and a grade from A (strong evidence) to D (early research). The grade comes from fixed rules, the same way every time, never from an AI, and a person reviews everything before it reaches the app.
-- **Fewer, better habits.** Six areas of life (sleep, nutrition, exercise, mind and stress, focus and screens, home) with a short list in each: the habits with the strongest evidence, not a catalogue.
-- **Starting and quitting.** Some habits are to start, others to drop. They are marked + and −, with no colour, so dropping a habit never feels like a punishment.
-- **Consistency, not streaks.** Progress reads "5 of the last 7 days". Missing a day does not send you back to zero.
-- **A plan, not just a reminder.** Each habit gets a plan in your own words, tied to a moment of your day: "When I finish lunch, I'll walk for 20 minutes."
-- **One finding a day.** The Daily Cite puts a short conclusion from a paper on the home screen, with its source. Never a motivational quote.
+- **Every habit shows its homework.** Each habit comes with a grade from A (strong) to D (early) for how strong the evidence is, a plain-English summary and links to the studies behind it. When a habit comes from a health guideline, like the WHO's, it shows who recommends it instead. The grade comes from fixed rules, never from an AI, and a person checks everything before it reaches the app. Grades and sources are free for everyone.
+- **Five goals, two ways to act.** Sleep, Move, Eat, Mind and Focus are the things to feel better about. Quit, for habits to drop, and Space, for things you set up once at home, cut across all of them.
+- **Some things you only do once.** A darker bedroom, a cooler room, warmer light in the evening, a clear desk: mark each one as set up and it stays done, with no daily box to tick.
+- **No streaks, no guilt.** Miss a day and nothing is taken away. Small, steady changes instead of a strict plan.
+- **Pebble keeps you company.** A small round companion that checks in with you and picks up a new shape for every area you keep up. It is never sad, never smaller when you miss a day, and after a quiet day it suggests the smallest next step. It never makes up science: the evidence always comes with its source.
+- **Your habits are yours.** Tracking a habit saves a little about you, so the app asks first. That data is never sold and never used for ads, and you can read every recommendation and source without saving anything.
 
-**Who it is for.** People who take their quality of life seriously, want to improve several parts of it rather than just one, and want to know why a habit is worth their time.
+**Who it is for.** People who take their quality of life seriously: who want to know why a habit works before they start, would rather keep one small habit than abandon a big plan, and are done with streaks. It is not meant for medical treatment, leaderboards or quick fixes.
 
-**How it looks.** Like a well-annotated paper: ink on paper, a serif for the headings, and a highlighter yellow kept only for the science, the citation marks and the daily finding. The grades are one colour in four strengths, more ink for more proof, instead of green to red: a D means early research, not a bad habit. Dark mode from the first day, because the sleep habits are used at night.
+**How it looks.** Flat, friendly shapes on a warm off-white page. Each area has its own shape and colour: a circle for Sleep, a triangle for Move, a square for Eat, a dome for Mind, a target for Focus, a dash for Quit and a corner for Space. Pebble wears the shapes it earns. The evidence grades are columns that shrink from solid black to a dashed outline: a D means early research, not a bad habit.
 
-<!-- Drafted by Claude from the app's specification and the app itself, at Salvador's request. Salvador: review and rewrite in your own words. -->
+<!-- Drafted by Claude from the Cited Life website, at Salvador's request. Salvador: review and rewrite in your own words. -->
