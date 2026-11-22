@@ -14,7 +14,10 @@ export type Entry = CollectionEntry<"projects">;
 
 /** HTML of a content file without its comments: they are notes for editing, not for visitors. */
 export function htmlOf(rendered: { html?: string } | undefined): string {
-  return (rendered?.html ?? "").replace(/<!--[\s\S]*?-->\s*/g, "");
+  return (rendered?.html ?? "")
+    .replace(/<!--[\s\S]*?-->\s*/g, "")
+    // Links that leave the site open in a new tab.
+    .replace(/<a (?![^>]*\btarget=)(?=[^>]*\bhref="https?:\/\/)/g, '<a target="_blank" rel="noopener" ');
 }
 
 /** Title of the home page (the browser tab, search results and link previews). */
