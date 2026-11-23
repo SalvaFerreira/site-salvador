@@ -5,14 +5,13 @@ title: "Cited Life"
 summary: "A quality-of-life app for people who take feeling good seriously: small habits backed by research, each one showing its evidence, with no streaks and no guilt. In active development."
 label: "Cited Life"
 category: "personal"
-place: "Príncipe Real"
+place: "Parque das Nações"
 logo: "/logos/cited-life.svg"
 role: "Personal project - Evidence-based companion app (in development)"
 # Shorter role for the map label.
 tagline: "In development"
-# Museu Nacional de História Natural e da Ciência, Rua da Escola Politécnica 56-58:
-# a science museum, for an app built on evidence.
-coordinates: [-9.150684, 38.717931]
+# MEO Arena, Parque das Nações: where Web Summit is held (as placed in OpenStreetMap).
+coordinates: [-9.093940, 38.768454]
 order: 8.5
 # Start: orders the Tour.
 date: "2026-11"
