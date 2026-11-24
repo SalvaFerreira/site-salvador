@@ -18,14 +18,14 @@ date: "2026-11"
 # Sections of the Cited Life website (Desktop/website-citedlife), taken at 1440 px wide.
 # The budget and pricing sections are left out on purpose.
 images:
+  - src: "/images/cited-life-site-hero.webp"
+    alt: "The opening of the Cited Life website: 'Small habits. Real science. No rush.' and a line on what the app does. Beside it, on lavender, Pebble, a round blue companion, smiling in a white eye mask pushed up on its head and orange sneakers."
   - src: "/images/cited-life-site-areas.webp"
     alt: "The section 'Five things to feel better about. Two ways to act.': five coloured cards for the goals, each with its own white shape: Sleep (blue, a circle), Move (orange, a triangle), Eat (green, a square), Mind (pink, a dome) and Focus (teal, a target). Below, two outlined cards for the ways to act: Quit (a yellow dash) and Space (a violet corner)."
   - src: "/images/cited-life-site-science.webp"
     alt: "The section 'Every habit shows its homework': the evidence grades drawn as four columns of falling height, A strong, B moderate, C limited and D early, from solid black to a dashed outline."
-  - src: "/images/cited-life-site-space.webp"
-    alt: "The section 'Some things you only do once', on lavender: a card with the violet corner shape, '2 of 5 set up' and five boxes, two of them filled."
   - src: "/images/cited-life-site-pebble.webp"
-    alt: "The section 'A little friend that keeps you company': Pebble, a round blue companion with happy eyes, wearing all seven shapes, next to four promises. Below, a row of seven small Pebbles, each wearing one area's shape: Sleep, Move, Eat, Mind, Focus, Quit and Space."
+    alt: "The section 'A little friend that keeps you company': Pebble with happy eyes, wearing all seven accessories at once, next to four promises. Below, a row of seven small Pebbles, each wearing one area's accessory: an eye mask for Sleep, sneakers for Move, a lunchbox for Eat, headphones for Mind, a badge with a target for Focus, a scarf for Quit and an armchair for Space."
 # No tools listed: this page is about the product, not how it is built.
 stack: []
 # links: none yet; the app is not launched and its repository is private.
@@ -42,6 +42,6 @@ stack: []
 
 **Who it is for.** People who take their quality of life seriously: who want to know why a habit works before they start, would rather keep one small habit than abandon a big plan, and are done with streaks. It is not meant for medical treatment, leaderboards or quick fixes.
 
-**How it looks.** Flat, friendly shapes on a warm off-white page. Each area has its own shape and colour: a circle for Sleep, a triangle for Move, a square for Eat, a dome for Mind, a target for Focus, a dash for Quit and a corner for Space. Pebble wears the shapes it earns. The evidence grades are columns that shrink from solid black to a dashed outline: a D means early research, not a bad habit.
+**How it looks.** Flat, friendly shapes on a warm off-white page. Each area has its own shape and colour: a circle for Sleep, a triangle for Move, a square for Eat, a dome for Mind, a target for Focus, a dash for Quit and a corner for Space. Pebble earns an accessory for each area: an eye mask, sneakers, a lunchbox, headphones, a Focus badge, a scarf and an armchair. The evidence grades are columns that shrink from solid black to a dashed outline: a D means early research, not a bad habit.
 
 <!-- Drafted by Claude from the Cited Life website, at Salvador's request. Salvador: review and rewrite in your own words. -->
